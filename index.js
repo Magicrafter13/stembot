@@ -1,28 +1,30 @@
-// Node's native file system module
-const fs = require('fs');
-// Discord.js library - create Discord object
-const Discord = require('discord.js');
-// private config file
+const fs = require('fs'); // Node's native file system module
+const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
+
+// Bot config file
+//  - prefix: Command prefix for messages directed at bot
+//  - token:  Discord token for bot login
 const { prefix, token } = require('./config.json');
-// register Discord client
-const client = new Discord.Client();
-// JS's native Map class
-client.commands = new Discord.Collection();
 
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+const client = new Discord.Client(); // register Discord client
+client.commands = new Discord.Collection(); // Create commands property as a JS collection
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
 
+// Load each .js command file
 for (const file of commandFiles) {
-	const command = require(`./commands/${file}`); // paths to commands folder
-    // set a new item in the Collection
-    // with the key as the command name and the value as the exported module
+	const command = require(`./commands/${file}`);
+
+	// set a new item in the Collection
+	// with the key as the command name and the value as the exported module
 	client.commands.set(command.name, command);
 }
 
-// Execute when client is ready
+// Execute first time ready event is received only
 client.once('ready', () => {
-	console.log('Ready!');
+	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
 });
 
+// Handle messages from users (requires channel read permission)
 client.on('message', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
 
