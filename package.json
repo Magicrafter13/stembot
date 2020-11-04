@@ -1,0 +1,28 @@
+{
+  "name": "stembot",
+  "version": "1.0.0",
+  "description": "Clark College Community STEM Discord Bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "bot",
+    "discord",
+    "college",
+    "management"
+  ],
+  "author": "Matthew Rease",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/Magicrafter13/stembot.git"
+  },
+  "bugs": {
+    "url": "https://gitlab.com/Magicrafter13/stembot/issues"
+  },
+  "homepage": "https://gitlab.com/Magicrafter13/stembot#readme",
+  "dependencies": {
+    "discord.js": "^12.4.1"
+  }
+}
