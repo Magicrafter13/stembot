@@ -1,5 +1,5 @@
 // Private config file
-const config = require('./config.json');
+const { prefix, token } = require('./config.json');
 // Discord.js library - create Discord object
 const Discord = require('discord.js');
 // Register Discord client
@@ -11,10 +11,10 @@ client.on('ready', () => {
 });
 
 client.on('message', msg => {
-	if (msg.content === 'ping') {
+	if (msg.content === `${prefix}ping`) {
 		msg.reply('Pong!');
 	}
 });
 
 // Login with token
-client.login(config.token);
+client.login(token);
