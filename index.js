@@ -12,7 +12,8 @@ client.on('ready', () => {
 
 client.on('message', msg => {
 	if (msg.content === `${prefix}ping`) {
-		msg.reply('Pong!');
+		const timeTaken = Date.now() - msg.createdTimestamp;
+        msg.reply(`Pong! This message had a latency of ${timeTaken}ms.`);
 	}
 });
 
