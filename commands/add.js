@@ -22,7 +22,7 @@ module.exports = {
 					// There's probably a better way to check if the argument is a number besides using RegEx
 					// May want to look into this later
 					if (args[1].match(/^\d+$/)) {
-						message.channel.send(`Okay, creating a role${(createChannel ? ', and channel ' : ' ')}for ${classes[classType]} ${args[1]}.`);
+						message.channel.send(`Processing request...`);
 						// Create Role
 						const roleName = `${classes[classType]} ${args[1]}`;
 						message.guild.roles.create({
@@ -47,6 +47,7 @@ module.exports = {
 							.catch(console.error);
 							message.channel.send(`Channel created - #${channelName}`);
 						}
+						message.channel.send('Finished.');
 					}
 					else message.channel.send(`err_syntax - ${args[1]} is not a positive integer.`);
 				}
