@@ -21,6 +21,8 @@ module.exports = {
 				if (args[0] === '-c' || args[0] === '--channel') {
 					createChannel = true;
 					args.shift();
+					if (args.length < 2)
+						return;
 				}
 
 				const classType = classes.map(function(str) { return str.toLowerCase(); }).indexOf(args[0].toLowerCase());
@@ -44,14 +46,14 @@ module.exports = {
 						// Create Channel
 						if (createChannel) {
 							const channelName = `${classes[classType].toLowerCase()}${args[1]}`;
-							message.guild.channels.create(channelName, {
+							const newChannel = message.guild.channels.create(channelName, {
 								type: 'text',
 								parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.name === classChannels[classType]),
 								reason: `${message.author.username} requested role creation, with related channel.`,
 							})
 							.then(console.log)
 							.catch(console.error);
-							message.channel.send(`Channel created - #${channelName}`);
+							message.channel.send(`Channel created - <#${newChannel.id}>`);
 						}
 						message.channel.send('Finished.');
 					}
