@@ -11,12 +11,12 @@ module.exports = {
 		switch (args.length) {
 			case 2:
 			case 3:
-			    let createChannel = false;
-			    if (args[0] === '-c' || args[0] === '--channel') {
-			    	createChannel = true;
-			    	args.shift();
-			    }
-			    
+				let createChannel = false;
+				if (args[0] === '-c' || args[0] === '--channel') {
+					createChannel = true;
+					args.shift();
+				}
+
 				const classType = classes.map(function(str) { return str.toLowerCase(); }).indexOf(args[0].toLowerCase());
 				if (classType >= 0) {
 					// There's probably a better way to check if the argument is a number besides using RegEx
