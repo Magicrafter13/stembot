@@ -34,8 +34,8 @@ client.on('message', message => {
 	const command = args.shift().toLowerCase(); // takes command and makes it lowercase/assigns it to variable
 
 	if (!client.commands.has(command)) return;
-    
-    if (!cooldowns.has(command.name)) {
+
+	if (!cooldowns.has(command.name)) {
 		cooldowns.set(command.name, new Discord.Collection());
 	}
 
