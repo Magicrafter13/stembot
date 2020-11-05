@@ -1,13 +1,19 @@
 module.exports = {
 	name: 'add',
 	description: 'Create new roles, and sort them properly.',
-	guildOnly: true,                    //
-	args: true,                         // not implemented in develop yet!
+	guildOnly: true,                         //
+	args: true,                              // not implemented in develop yet!
 	usage: '[-c] <classType> <classNumber>', //
 	execute(message, args) {
 		const classChannels = ['Computer Science', 'Engineering', 'Math', 'Physics'];
 		const classRoles = ['Computer Scientists', 'Engineers', 'Mathematicians', 'Physicists'];
 		const classes = ['CSE', 'Engr', 'Math', 'Phys'];
+		// Check if user issuing command has permissions (or has Administrator)
+		const guildMember = message.guild.member(message.author)
+		if (!guildMember.hasPermission('MANAGE_CHANNELS', { checkAdmin: true }) || !guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true })) {
+			message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES');
+			return;
+		}
 		switch (args.length) {
 			case 2:
 			case 3:
