@@ -12,10 +12,24 @@ module.exports = {
 			return message.reply('You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES');
 
 		// Clean bot-only role from users
-		/*const botRoleNames = ['Bots'];
+		const botRoleNames = ['Bots'];
 		if (args[0] === '-b' || args[0] === '--bot') {
-
-		}*/
+			const roles = message.guild.roles.cache;
+			const botRoles = botRoleNames.map(botRole => roles.findKey(role => role.name === botRole));
+			console.log(botRoles);
+			const members = message.guild.members.cache;
+			members.each(member => {
+				if (!member.user.bot) {
+					botRoles.forEach(roleKey => {
+						if (member.roles.cache.has(roleKey)) {
+							message.channel.send(`Removing ${roles.get(roleKey)} from ${member.displayName}.`);
+							member.roles.remove(roles.get(roleKey), `${message.author.username} requested bot role clean, ${roles.get(roleKey)} is configured as a bot only role.`);
+						}
+					});
+				}
+			});
+			return;
+		}
 
 		// Any person without <required role> will have all sub-role n removed
 		message.client.user.setActivity('Reading command.');
