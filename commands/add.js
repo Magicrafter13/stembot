@@ -2,8 +2,10 @@ module.exports = {
 	name: 'add',
 	description: 'Create new roles, and sort them properly.',
 	guildOnly: true,                         //
-	args: true,                              // not implemented in develop yet!
-	usage: '[-c] <classType> <classNumber>', //
+	cooldown: 0,
+	argsMin: 2,
+	argsMax: 3,
+	usage: '[-c] <classType> <classNumber>',
 	execute(message, args) {
 		const classChannels = ['Computer Science', 'Engineering', 'Math', 'Physics'];
 		const classRoles = ['Computer Scientists', 'Engineers', 'Mathematicians', 'Physicists'];
