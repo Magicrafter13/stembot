@@ -1,3 +1,25 @@
+function purgeRoles(message, roles, masterRole, subRoles) {
+	if (roles.has(masterRole)) {
+		if (subRoles.length > 0) {
+			const members = message.guild.members.cache;
+			//message.client.user.setActivity('Searching users.');
+			//console.log(`Scanning ${members.size} users.`);
+			members.each(member => {
+				if (!member.roles.cache.has(masterRole)) {
+					subRoles.forEach(roleKey => {
+						if (member.roles.cache.has(roleKey)) {
+							message.channel.send(`Removing ${roles.get(roleKey).name} from ${member.displayName}.`);
+							//member.roles.remove(roles.get(roleKey), `${message.author.username} requested role clean for users without ${roles.get(masterRole).name}.`);
+						}
+					});
+				}
+			});
+		}
+		else message.channel.send('Please specify at least one more argument.');
+	}
+	else message.channel.send('That role doesn\'t exist.');
+}
+
 module.exports = {
 	name: 'clean',
 	description: 'Cleans bad roles from users',
@@ -37,61 +59,41 @@ module.exports = {
 		}
 
 		// Any person without <required role> will have all sub-role n removed
-		message.client.user.setActivity('Reading command.');
+		//message.client.user.setActivity('Reading command.');
 		const roles = message.guild.roles.cache;
 		const masterRole = roles.findKey(role => role.toString() === args[0]);
 		args.shift();
-		let subRoles = [];
 		if (regex) {
 			// Get confirmation from at least one other Admin (unless command issued by server owner)
-			/*if (message.member !== message.guild.owner) {
-				let action = 0
-				message.client.user.setActivity('Waiting for approval.');
-				message.channel.send("Purging roles via Regular Expression requires approval of at least one more authorized user.\nIf you have the MANAGE_ROLES permission, and you approve of this action, please say `<prefix> approve`.");
-				message.channel.send("If the user who issued the command has changed their mind, or is unable to get approval you may say `<prefix> cancel` to stop this command.").then(() => {
-					const filter = m => message.member.hasPermission('MANAGE_ROLES', {
+			if (message.member !== message.guild.owner) {
+				let auth = false;
+				//message.client.user.setActivity('Waiting for approval.');
+				message.channel.send("Purging roles via Regular Expression requires approval of at least one more authorized user.\nIf you have the MANAGE_ROLES permission, and you approve of this action, please say `approve`.").then(() => {
+					const filter = m => m.member.hasPermission('MANAGE_ROLES', {
 						checkAdmin: true,
 						checkOwner: true,
-					});
+					}) && m.author !== message.author && m.content === 'approve';
 
 					const approve = message.channel.createMessageCollector(filter, { time: 60000, max: 1, errors: ['time'] });
 					approve.on('collect', messages => {
 						message.channel.send('Authorization granted, continuing command execution.');
-						action = 2;
+						auth = true;
+						const re = new RegExp(args[0]);
+						const subRoles = roles.filter(role => re.test(role.name)).map(val => roles.findKey(role => val === role));
+						purgeRoles(message, roles, masterRole, subRoles);
 					});
 					approve.on('end', () => {
-						message.channel.send('Authorization not received within acceptable timeframe, aborting command.');
-						action = 1;
+						if (!auth) message.channel.send('Authorization not received within acceptable timeframe, aborting command.');
 					});
-					while (action === 0) { }
-					if (action === 1) return;
-				});
-			}*/
-			const re = new RegExp(args[0]);
-			subRoles = roles.filter(role => re.test(role.name)).map(val => roles.findKey(role => val === role));
-		}
-		else subRoles = args.map(arg => roles.findKey(role => role.toString() === arg));
-
-		console.log(`Cleaning ${regex ? '' : subRoles.length} roles.`);
-		if (roles.has(masterRole)) {
-			if (subRoles.length > 0) {
-				const members = message.guild.members.cache;
-				message.client.user.setActivity('Searching users.');
-				console.log(`Scanning ${members.size} users.`);
-				members.each(member => {
-					if (!member.roles.cache.has(masterRole)) {
-						subRoles.forEach(roleKey => {
-							if (member.roles.cache.has(roleKey)) {
-								message.channel.send(`Removing ${roles.get(roleKey).name} from ${member.displayName}.`);
-								//member.roles.remove(roles.get(roleKey), `${message.author.username} requested role clean for users without ${roles.get(masterRole).name}.`);
-							}
-						});
-					}
 				});
 			}
-			else message.channel.send(regex ? 'Please specify a regular expression to match against' : 'Please specify at least one more argument.');
 		}
-		else message.channel.send('That role doesn\'t exist.');
-		message.client.user.setActivity('');
+		else {
+			const subRoles = args.map(arg => roles.findKey(role => role.toString() === arg));
+			purgeRoles(message, roles, masterRole, subRoles);
+		}
+
+		//console.log(`Cleaning ${regex ? '' : subRoles.length} roles.`);
+		//message.client.user.setActivity('');
 	},
 };
