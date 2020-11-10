@@ -1,15 +1,12 @@
 function purgeRoles(message, roles, masterRole, subRoles) {
 	if (roles.has(masterRole)) {
 		if (subRoles.length > 0) {
-			const members = message.guild.members.cache;
-			//message.client.user.setActivity('Searching users.');
-			//console.log(`Scanning ${members.size} users.`);
-			members.each(member => {
+			message.guild.members.cache.each(member => {
 				if (!member.roles.cache.has(masterRole)) {
 					subRoles.forEach(roleKey => {
 						if (member.roles.cache.has(roleKey)) {
 							message.channel.send(`Removing ${roles.get(roleKey).name} from ${member.displayName}.`);
-							//member.roles.remove(roles.get(roleKey), `${message.author.username} requested role clean for users without ${roles.get(masterRole).name}.`);
+							member.roles.remove(roles.get(roleKey), `${message.author.username} requested role clean for users without ${roles.get(masterRole).name}.`);
 						}
 					});
 				}
@@ -52,6 +49,7 @@ module.exports = {
 			return;
 		}
 
+		// Handle regex flag
 		let regex = args[0] === '-r' || args[0] === '--regex';
 		if (regex) {
 			args.shift();
@@ -59,7 +57,6 @@ module.exports = {
 		}
 
 		// Any person without <required role> will have all sub-role n removed
-		//message.client.user.setActivity('Reading command.');
 		const roles = message.guild.roles.cache;
 		const masterRole = roles.findKey(role => role.toString() === args[0]);
 		args.shift();
@@ -67,8 +64,8 @@ module.exports = {
 			// Get confirmation from at least one other Admin (unless command issued by server owner)
 			if (message.member !== message.guild.owner) {
 				let auth = false;
-				//message.client.user.setActivity('Waiting for approval.');
 				message.channel.send("Purging roles via Regular Expression requires approval of at least one more authorized user.\nIf you have the MANAGE_ROLES permission, and you approve of this action, please say `approve`.").then(() => {
+					// This is ugly, not sure of proper formatting
 					const filter = m => m.member.hasPermission('MANAGE_ROLES', {
 						checkAdmin: true,
 						checkOwner: true,
@@ -92,8 +89,5 @@ module.exports = {
 			const subRoles = args.map(arg => roles.findKey(role => role.toString() === arg));
 			purgeRoles(message, roles, masterRole, subRoles);
 		}
-
-		//console.log(`Cleaning ${regex ? '' : subRoles.length} roles.`);
-		//message.client.user.setActivity('');
 	},
 };
