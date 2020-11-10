@@ -44,9 +44,8 @@ module.exports = {
 							},
 							reason: `${message.author.username} requested role creation.`,
 						})
-							.then(role => message.channel.send(`Role created - {role.toString()}`))
+							.then(role => message.channel.send(`Role created - ${role.toString()}`))
 							.catch(console.error);
-						message.channel.send(`Role created - ${roleName}`);
 						// Create Channel
 						if (createChannel) {
 							const channelName = `${classes[classType].toLowerCase()}${args[1]}`;
