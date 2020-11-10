@@ -1,7 +1,7 @@
 module.exports = {
 	name: 'add',
 	description: 'Create new roles, and sort them properly.',
-	guildOnly: true,                         //
+	guildOnly: true,
 	cooldown: 0,
 	argsMin: 2,
 	argsMax: 3,
@@ -10,12 +10,14 @@ module.exports = {
 		const classChannels = ['Computer Science', 'Engineering', 'Math', 'Physics'];
 		const classRoles = ['Computer Scientists', 'Engineers', 'Mathematicians', 'Physicists'];
 		const classes = ['CSE', 'Engr', 'Math', 'Phys'];
+
 		// Check if user issuing command has permissions (or has Administrator)
 		const guildMember = message.guild.member(message.author)
 		if (!guildMember.hasPermission('MANAGE_CHANNELS', { checkAdmin: true }) || !guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true })) {
 			message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES');
 			return;
 		}
+
 		switch (args.length) {
 			case 2:
 			case 3:
@@ -27,7 +29,7 @@ module.exports = {
 						return;
 				}
 
-				const classType = classes.map(function(str) { return str.toLowerCase(); }).indexOf(args[0].toLowerCase());
+				const classType = classes.map(str => str.toLowerCase()).indexOf(args[0].toLowerCase());
 				if (classType >= 0) {
 					// There's probably a better way to check if the argument is a number besides using RegEx
 					// May want to look into this later
@@ -42,8 +44,8 @@ module.exports = {
 							},
 							reason: `${message.author.username} requested role creation.`,
 						})
-						.then(console.log)
-						.catch(console.error);
+							.then(role => message.channel.send(`Role created - {role.toString()}`))
+							.catch(console.error);
 						message.channel.send(`Role created - ${roleName}`);
 						// Create Channel
 						if (createChannel) {
@@ -53,11 +55,10 @@ module.exports = {
 								parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.name === classChannels[classType]),
 								reason: `${message.author.username} requested role creation, with related channel.`,
 							})
-							.then(console.log)
-							.catch(console.error);
-							message.channel.send(`Channel created - <#${newChannel.id}>`);
+								.then(channel => message.channel.send(`Channel created - <#${channel.id}>`))
+								.catch(console.error);
 						}
-						message.channel.send('Finished.');
+						//message.channel.send('Finished.'); // Not asynchronous, and may fire before completion. Not an important message. May re-incorporate in future version.
 					}
 					else message.channel.send(`err_syntax - ${args[1]} is not a positive integer.`);
 				}
