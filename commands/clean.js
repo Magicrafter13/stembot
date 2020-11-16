@@ -25,7 +25,7 @@ module.exports = {
 	argsMin: 1,
 	argsMax: -1,
 	usage: '-b|--bot\n(or:) <required role> <sub-role 1> ...',
-	execute(message, args) {
+	execute(message, args, settings) {
 		// Check for authorization
 		if (!message.member.hasPermission('MANAGE_ROLES'))
 			return message.reply('You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES');
@@ -33,6 +33,27 @@ module.exports = {
 		// Clean bot-only role from users
 		const botRoleNames = ['Bots'];
 		if (args[0] === '-b' || args[0] === '--bot') {
+			const botRoleDB = settings.get('botRoles');
+			botRoleDB.get(message.guild.id)
+				.then(botRoleIDs => {
+					if (botRoleIDs === undefined)
+						botRoleIDs = [];
+
+					if (botRoleIDs.length) {
+						const botRoles = botRoleIDs.map(id => message.guild.roles.cache.find(role => role.id === id));
+						botRoles.forEach(role => {
+							role.members.each(member => {
+								if (!member.user.bot) {
+									message.channel.send(`Removing ${role.toString()} from ${member.displayName}.`);
+									member.roles.remove(role, `${message.author.username} requested bot role clean, ${role.name} is in the bot role list.`);
+								}
+							});
+						});
+					}
+					else return message.channel.send('Bot Role list is empty, add roles to it with\n\`\`\`\nset botRoles add <role>\n\`\`\`');
+				})
+			.catch(console.error);
+			return;
 			const roles = message.guild.roles.cache;
 			const botRoles = botRoleNames.map(botRole => roles.findKey(role => role.name === botRole));
 			const members = message.guild.members.cache;
