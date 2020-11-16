@@ -1,10 +1,18 @@
 const fs = require('fs'); // Node's native file system module
 const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
+const Keyv = require('keyv'); // Key-Value database
 
 // Bot config file
 //  - prefix: Command prefix for messages directed at bot
 //  - token:  Discord token for bot login
-const { prefix, token } = require('./config.json');
+const { prefix, token, dbUser, dbPass } = require('./config.json');
+
+// Setup Database
+const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
+botRoles.on('error', err => console.log('Connection Error', err));
+
+let settings = new Map();
+settings.set('botRoles', botRoles);
 
 const client = new Discord.Client(); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
@@ -50,7 +58,7 @@ client.on('message', message => {
 	 * function return different values (error codes), and then we can call upon command.usage based on
 	 * what execute returns.
 	 */
-	if (command.argsMax != -1 && (args.length < command.argsMin || args.length > command.argsMax))
+	if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
 		return message.channel.send(`Invalid command syntax, usage:\n\`\`\`\n${command.name} ${command.usage}\n\`\`\``)
 
 	if (!cooldowns.has(command.name)) {
@@ -76,7 +84,7 @@ client.on('message', message => {
 	setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
 	try {
-		command.execute(message, args); // attempts to execute command
+		command.execute(message, args, settings); // attempts to execute command
 	} catch (error) {
 		console.error(error);
 		message.reply('there was an error trying to execute that command!'); // error message for user
