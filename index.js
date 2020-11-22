@@ -9,10 +9,13 @@ const { prefix, token, dbUser, dbPass } = require('./config.json');
 
 // Setup Database
 const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
+const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
 botRoles.on('error', err => console.log('Connection Error', err));
+categories.on('error', err => console.log('Connection Error', err));
 
 let settings = new Map();
 settings.set('botRoles', botRoles);
+settings.set('categories', categories);
 
 const client = new Discord.Client(); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
