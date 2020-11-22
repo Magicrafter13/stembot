@@ -105,7 +105,7 @@ module.exports = {
 						message.guild.roles.create({
 							data: {
 								name: `${catData.prefix} ${className}`,
-								position: message.guild.roles.cache.find(role => role.id === catData.roles[catData.roles.length - 1]).position,
+								position: catData.roles.length === 0 ? null : message.guild.roles.cache.find(role => role.id === catData.roles[catData.roles.length - 1]).position,
 							},
 							reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
 						})
@@ -113,7 +113,7 @@ module.exports = {
 								message.guild.channels.create(`${catData.prefix}${className}`, {
 									type: 'text',
 									parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.id === catData.channel),
-									position: message.guild.channels.cache.find(channel => channel.id === catData.channels[catData.channels.length - 1]).rawPosition,
+									position: catData.channels.length === 0 ? null : message.guild.channels.cache.find(channel => channel.id === catData.channels[catData.channels.length - 1]).rawPosition,
 									reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
 								})
 									.then(newChannel => {
@@ -143,6 +143,29 @@ module.exports = {
 						catData.roles.splice(classIndex, 1);
 						catData.channels.splice(classIndex, 1);
 						categories[place] = catData;
+						break;
+					case '-d': case '--delete':
+						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
+						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
+
+						className = args.shift().toLowerCase();
+						const fieldIndex = catData.classes.indexOf(className);
+						if (fieldIndex === -1) return message.channel.send(`${role.toString()} doesn't contain this class.`);
+
+						catData.classes.splice(fieldIndex, 1);
+						message.guild.roles.fetch(catData.roles.splice(fieldIndex, 1)[0])
+							.then(oldRole => {
+								oldRole.delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
+								.then(message.channel.send('Role deleted.'))
+								.catch(console.error);
+								const oldChannelID = catData.channels.splice(fieldIndex, 1)[0];
+								message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
+								.then(message.channel.send(`Channel deleted.`))
+								.catch(console.error);
+								categories[place] = catData;
+							})
+						.catch(console.error);
 						break;
 				}
 				catDB.set(message.guild.id, categories);
