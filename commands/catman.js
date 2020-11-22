@@ -8,16 +8,6 @@ module.exports = {
 	usage: '',
 	execute(message, args, settings) {
 		const catDB = settings.get('categories');
-
-		/*catDB.set(message.guild.id, new Map())
-			.then(() => {
-				catDB.get(message.guild.id)
-				.then(obj => console.log(obj.has('f')))
-				.catch(console.error);
-			})
-		.catch(console.error);
-		return;*/
-
 		catDB.get(message.guild.id)
 			.then(val => {
 				// JSON stringify doesn't support Map objects...
@@ -57,7 +47,6 @@ module.exports = {
 							catData.channel = category.id;
 							categories[place] = catData;
 						}
-						catDB.set(message.guild.id, categories);
 						break;
 					case '-sp': case '--set-prefix':
 						const prefix = args.shift();
@@ -77,7 +66,6 @@ module.exports = {
 							catData.prefix = prefix;
 							categories[place] = catData;
 						}
-						catDB.set(message.guild.id, categories);
 						break;
 					case '-p': case '--print':
 						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
@@ -85,8 +73,7 @@ module.exports = {
 						const classes = `[ ${catData.classes.join(', ')} ]`;
 						const roles = `[ ${catData.roles.map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
 						const channels = `[ ${catData.channels.map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
-						message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\n${classes}\n${roles}\n${channels}`);
-						break;
+						return message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\n${classes}\n${roles}\n${channels}`);
 					case '-a': case '--add':
 						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
 						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
@@ -94,10 +81,8 @@ module.exports = {
 
 						const newClass = args.shift().toLowerCase();
 						if (catData.classes.indexOf(newClass) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
-
 						const classRole = message.guild.roles.cache.find(role => role.name.startsWith(`${catData.prefix} ${newClass}`));
 						if (classRole === undefined) return message.channel.send(`No role found with name \`${catData.prefix} ${newClass}\`, you can create one by using \`-c\` instead of \`-a\`.`);
-
 						const classChannel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${catData.prefix.toLowerCase()}${newClass}`) && channel.type === 'text')
 						if (classChannel === undefined) return message.channel.send(`No channel found with name \`${catData.prefix.toLowerCase()}${newClass}, you can create one by using \`-c\` instead of \`-a\`.`);
 
@@ -108,9 +93,46 @@ module.exports = {
 						catData.roles.push(classRole.id);
 						catData.channels.push(classChannel.id);
 						categories[place] = catData;
+						break;
+					case '-c': case '--create':
+						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
+						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-						catDB.set(message.guild.id, categories);
+						const className = args.shift().toLowerCase();
+						if (catData.classes.indexOf(className) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
+
+						message.guild.roles.create({
+							data: {
+								name: `${catData.prefix} ${className}`,
+								position: message.guild.roles.cache.find(role => role.id === catData.roles[catData.roles.length - 1]).position,
+							},
+							reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
+						})
+							.then(newRole => {
+								message.guild.channels.create(`${catData.prefix}${className}`, {
+									type: 'text',
+									parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.id === catData.channel),
+									position: message.guild.channels.cache.find(channel => channel.id === catData.channels[catData.channels.length - 1]).rawPosition,
+									reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
+								})
+									.then(newChannel => {
+										message.channel.send(`Adding ${newRole.toString()} and ${newChannel.toString()} to ${role.toString()} info.`);
+
+										const place = categories.indexOf(catData);
+										catData.classes.push(className);
+										catData.roles.push(newRole.id);
+										catData.channels.push(newChannel.id);
+										categories[place] = catData;
+
+										catDB.set(message.guild.id, categories);
+									})
+								.catch(console.error);
+							})
+						.catch(console.error);
+						return;
 				}
+				catDB.set(message.guild.id, categories);
 			})
 		.catch(console.error);
 	}

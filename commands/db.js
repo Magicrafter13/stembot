@@ -43,53 +43,6 @@ async function manageBotRoles(message, args, botRoleDB) {
 	.catch(console.error);
 }
 
-async function manageCategories(message, args, categoryDB) {
-	categoryDB.get(message.guild.id)
-		.then(categories => {
-			if (categories === undefined)
-				categories = [];
-
-			const cmd = args.shift();
-			switch (cmd) {
-				case 'clear':
-					categories = [];
-					categoryDB.set(message.guild.id, [])
-					.then(message.channel.send('Cleared category list.'))
-					.catch(console.error);
-					break;
-				case undefined: case 'list': break;
-				case 'add':
-					if (!args.length) return message.channel.send('Expected 3rd argument of type: Channel Category');
-
-					const category = message.guild.channels.cache.find(channel => channel.type === 'category' && channel.name === args.join(' '));
-					if (category) {
-						const id = category.id;
-						categories.push({
-							id: id,
-							classes: [], // class numbers
-							roles: [], // class roles
-							channels: [], // class channels
-						});
-						categoryDB.set(message.guild.id, categories);
-						message.channel.send(`Added ${category.toString()} to the category role list.`);
-					}
-					else message.channel.send('3rd argument must be type: Channel Category');
-					break;
-				case 'remove':
-					// code
-					break;
-				case 'set':
-					return message.channel.send('Please use add, remove, or clean.');
-				default:
-					return message.channel.send(`'${cmd}' is not a valid action.`);
-			}
-
-			// Show user updated list
-			message.channel.send(`Current Category List: [ ${categories.map(set => message.guild.channels.cache.find(channel => channel.id === set.id).toString()).join(', ')} ]`);
-		})
-	.catch(console.error);
-}
-
 module.exports = {
 	name: 'db',
 	description: 'Changes data/settings related to guild (server).',
