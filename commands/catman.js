@@ -24,6 +24,9 @@ module.exports = {
 
 				// Category information for specified role
 				let catData = categories.find(c => c.id === role.id);
+				const place = categories.indexOf(catData);
+
+				let className;
 
 				const cmd = args.shift();
 				switch (cmd) {
@@ -43,7 +46,6 @@ module.exports = {
 							});
 						}
 						else {
-							const place = categories.indexOf(catData);
 							catData.channel = category.id;
 							categories[place] = catData;
 						}
@@ -62,7 +64,6 @@ module.exports = {
 							});
 						}
 						else {
-							const place = categories.indexOf(catData);
 							catData.prefix = prefix;
 							categories[place] = catData;
 						}
@@ -79,17 +80,16 @@ module.exports = {
 						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
 						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-						const newClass = args.shift().toLowerCase();
-						if (catData.classes.indexOf(newClass) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
-						const classRole = message.guild.roles.cache.find(role => role.name.startsWith(`${catData.prefix} ${newClass}`));
-						if (classRole === undefined) return message.channel.send(`No role found with name \`${catData.prefix} ${newClass}\`, you can create one by using \`-c\` instead of \`-a\`.`);
-						const classChannel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${catData.prefix.toLowerCase()}${newClass}`) && channel.type === 'text')
-						if (classChannel === undefined) return message.channel.send(`No channel found with name \`${catData.prefix.toLowerCase()}${newClass}, you can create one by using \`-c\` instead of \`-a\`.`);
+						className = args.shift().toLowerCase();
+						if (catData.classes.indexOf(className) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
+						const classRole = message.guild.roles.cache.find(role => role.name.startsWith(`${catData.prefix} ${className}`));
+						if (classRole === undefined) return message.channel.send(`No role found with name \`${catData.prefix} ${className}\`, you can create one by using \`-c\` instead of \`-a\`.`);
+						const classChannel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${catData.prefix.toLowerCase()}${className}`) && channel.type === 'text')
+						if (classChannel === undefined) return message.channel.send(`No channel found with name \`${catData.prefix.toLowerCase()}${className}, you can create one by using \`-c\` instead of \`-a\`.`);
 
 						message.channel.send(`Adding ${classRole.toString()} and ${classChannel.toString()} to ${role.toString()} info.`);
 
-						const place = categories.indexOf(catData);
-						catData.classes.push(newClass);
+						catData.classes.push(className);
 						catData.roles.push(classRole.id);
 						catData.channels.push(classChannel.id);
 						categories[place] = catData;
@@ -99,7 +99,7 @@ module.exports = {
 						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
 						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-						const className = args.shift().toLowerCase();
+						className = args.shift().toLowerCase();
 						if (catData.classes.indexOf(className) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
 
 						message.guild.roles.create({
@@ -119,7 +119,6 @@ module.exports = {
 									.then(newChannel => {
 										message.channel.send(`Adding ${newRole.toString()} and ${newChannel.toString()} to ${role.toString()} info.`);
 
-										const place = categories.indexOf(catData);
 										catData.classes.push(className);
 										catData.roles.push(newRole.id);
 										catData.channels.push(newChannel.id);
@@ -131,6 +130,20 @@ module.exports = {
 							})
 						.catch(console.error);
 						return;
+					case '-r': case '--remove':
+						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
+						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
+
+						className = args.shift().toLowerCase();
+						const classIndex = catData.classes.indexOf(className);
+						if (classIndex === -1) return message.channel.send(`${role.toString()} doesn't contain this class.`);
+
+						catData.classes.splice(classIndex, 1);
+						catData.roles.splice(classIndex, 1);
+						catData.channels.splice(classIndex, 1);
+						categories[place] = catData;
+						break;
 				}
 				catDB.set(message.guild.id, categories);
 			})
