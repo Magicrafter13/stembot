@@ -19,7 +19,7 @@ function purgeRoles(message, roles, masterID, subIDs) {
 
 module.exports = {
 	name: 'clean',
-	description: 'Cleans bad roles from users',
+	description: 'Cleans old roles from users. See \`catman\`.',
 	guildOnly: true,
 	cooldown: 0,
 	argsMin: 0,
@@ -31,7 +31,6 @@ module.exports = {
 			return message.reply('You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES');
 
 		// Clean bot-only role from users
-		const botRoleNames = ['Bots'];
 		if (args[0] === '-b' || args[0] === '--bot') {
 			const botRoleDB = settings.get('botRoles');
 			botRoleDB.get(message.guild.id)
@@ -54,23 +53,7 @@ module.exports = {
 				})
 			.catch(console.error);
 			return;
-			const roles = message.guild.roles.cache;
-			const botRoles = botRoleNames.map(botRole => roles.findKey(role => role.name === botRole));
-			const members = message.guild.members.cache;
-			members.each(member => {
-				if (!member.user.bot) {
-					botRoles.forEach(roleKey => {
-						if (member.roles.cache.has(roleKey)) {
-							message.channel.send(`Removing ${roles.get(roleKey)} from ${member.displayName}.`);
-							member.roles.remove(roles.get(roleKey), `${message.author.username} requested bot role clean, ${roles.get(roleKey).name} is configured as a bot only role.`);
-						}
-					});
-				}
-			});
-			return;
-		}
 
-		// Any person without <required role> will have all sub-role n removed
 		const roles = message.guild.roles;
 		const catDB = settings.get('categories');
 		catDB.get(message.guild.id)
@@ -81,9 +64,5 @@ module.exports = {
 				categories.forEach(catData => purgeRoles(message, roles, catData.id, catData.roles));
 			})
 		.catch(console.error);
-		/*const masterRole = roles.findKey(role => role.toString() === args[0]);
-		args.shift();
-		const subRoles = args.map(arg => roles.findKey(role => role.toString() === arg));
-		purgeRoles(message, roles, masterRole, subRoles);*/
 	},
 };
