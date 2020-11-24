@@ -3,7 +3,7 @@ module.exports = {
 	description: 'Field Category Manager',
 	guildOnly: true,
 	cooldown: 0.5,
-	argsMin: 2,
+	argsMin: 1,
 	argsMax: -1,
 	usage: '',
 	execute(message, args, settings) {
@@ -179,6 +179,11 @@ module.exports = {
 							})
 						.catch(console.error);
 						break;
+					case '--purge':
+						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
+
+						categories.splice(place, 1);
+						message.channel.send(`Erased ${role.toString()} from category info list!`);
 				}
 				catDB.set(message.guild.id, categories);
 			})

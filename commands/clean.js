@@ -53,6 +53,7 @@ module.exports = {
 				})
 			.catch(console.error);
 			return;
+		}
 
 		const roles = message.guild.roles;
 		const catDB = settings.get('categories');
