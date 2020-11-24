@@ -4,7 +4,7 @@ module.exports = {
 	guildOnly: true,
 	cooldown: 0.5,
 	argsMin: 1,
-	argsMax: -1,
+	argsMax: 2,
 	usage: `${this.name} action\n\n\tactions:\n-p --print - prints current list of bot roles\n-c --clear - clear list\n-a --add - add role to list\n-r --remove - remove role from list`,
 	execute(message, args, settings) {
 		const botRoleDB = settings.get('botRoles');
@@ -46,6 +46,7 @@ module.exports = {
 						if (role) {
 							botRoles.splice(botRoles.indexOf(role.id), 1);
 							botRoleDB.set(message.guild.id, botRoles);
+							message.channel.send(`Removed ${role.toString()} from the bot role list.`);
 						}
 						else message.channel.send('3rd argument must be type: Role');
 						break;

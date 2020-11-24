@@ -3,7 +3,7 @@ module.exports = {
 	description: 'Field Category Manager',
 	guildOnly: true,
 	cooldown: 0.5,
-	argsMin: 1,
+	argsMin: 2,
 	argsMax: -1,
 	usage: '',
 	execute(message, args, settings) {
@@ -49,10 +49,12 @@ module.exports = {
 								roles: [],    // array of role ids
 								channels: [], // array of channel ids
 							});
+							message.channel.send(`Created class info for ${role.toString()}, under category ${category.toString()}.`);
 						}
 						else {
 							catData.channel = category.id;
 							categories[place] = catData;
+							message.channel.send(`Updated class category to ${category.toString()}.`);
 						}
 						break;
 					case '-sp': case '--set-prefix':
@@ -67,10 +69,12 @@ module.exports = {
 								roles: [],
 								channels: [],
 							});
+							message.channel.send(`Created class info for ${role.toString()}, with prefix \`${prefix}\`.`);
 						}
 						else {
 							catData.prefix = prefix;
 							categories[place] = catData;
+							message.channel.send(`Updated class prefix to \`${prefix}\`.`);
 						}
 						break;
 					case '-p': case '--print':
@@ -149,6 +153,7 @@ module.exports = {
 						catData.roles.splice(classIndex, 1);
 						catData.channels.splice(classIndex, 1);
 						categories[place] = catData;
+						message.channel.send(`Removed \`${className}\` from list of classes.`);
 						break;
 					case '-d': case '--delete':
 						if (catData === undefined) return message.channel.send(`No category information set for ${role.toString()}`);
