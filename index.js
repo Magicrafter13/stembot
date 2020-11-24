@@ -50,7 +50,7 @@ client.on('message', message => {
 	 * function return different values (error codes), and then we can call upon command.usage based on
 	 * what execute returns.
 	 */
-	if (command.argsMax != -1 && (args.length < command.argsMin || args.length > command.argsMax))
+	if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
 		return message.channel.send(`Invalid command syntax, usage:\n\`\`\`\n${command.name} ${command.usage}\n\`\`\``)
 
 	if (!cooldowns.has(command.name)) {
