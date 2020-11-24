@@ -7,6 +7,11 @@ module.exports = {
 	argsMax: -1,
 	usage: '',
 	execute(message, args, settings) {
+		// Check if user has required permissions.
+		const guildMember = message.guild.member(message.author);
+		if (!guildMember.hasPermission('MANAGE_CHANNELS', { checkAdmin:true }) || !guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true }))
+			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES');
+
 		const catDB = settings.get('categories');
 		catDB.get(message.guild.id)
 			.then(val => {
@@ -113,10 +118,11 @@ module.exports = {
 								message.guild.channels.create(`${catData.prefix}${className}`, {
 									type: 'text',
 									parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.id === catData.channel),
-									position: catData.channels.length === 0 ? null : message.guild.channels.cache.find(channel => channel.id === catData.channels[catData.channels.length - 1]).rawPosition,
 									reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
 								})
 									.then(newChannel => {
+										if (catData.channels.length)
+											newChannel.setPosition(message.guild.channels.cache.find(channel => channel.id === catData.channels[catData.channels.length - 1]).rawPosition);
 										message.channel.send(`Adding ${newRole.toString()} and ${newChannel.toString()} to ${role.toString()} info.`);
 
 										catData.classes.push(className);
@@ -160,9 +166,10 @@ module.exports = {
 								.then(message.channel.send('Role deleted.'))
 								.catch(console.error);
 								const oldChannelID = catData.channels.splice(fieldIndex, 1)[0];
-								message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
+								message.channel.send(`You may now delete ${message.guild.channels.cache.find(channel => channel.id === oldChannelID).toString()}.`);
+								/*message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
 								.then(message.channel.send(`Channel deleted.`))
-								.catch(console.error);
+								.catch(console.error);*/
 								categories[place] = catData;
 							})
 						.catch(console.error);
