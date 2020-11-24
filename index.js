@@ -44,7 +44,7 @@ client.on('message', message => {
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
-			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``);
+			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\`\nYou may also check the documentation on the Wiki: https://gitlab.com/Magicrafter13/stembot/-/wikis/home\nAnd request features or submit bugs here: <https://gitlab.com/Magicrafter13/stembot/-/issues>`);
 		}
 	}
 
