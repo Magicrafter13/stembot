@@ -36,6 +36,7 @@ const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will no
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
+	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
 });
 
 // Handle messages from users (requires channel read permission)
