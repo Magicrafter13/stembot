@@ -46,6 +46,21 @@ client.on('message', message => {
 	const args = message.content.slice(prefix.length).trim().split(/ +/); // looks for arguments and assigns them
 	const commandName = args.shift().toLowerCase(); // takes command and makes it lowercase/assigns it to variable
 
+	// Handle help
+	if (commandName === 'help') {
+		if (args.length) {
+			const cmdQuery = client.commands.get(args.shift().toLowerCase());
+			if (!cmdQuery) return message.channel.send(`Command does not exist!`);
+
+			return message.channel.send(`${cmdQuery.name}\n  ${cmdQuery.description}\n  usage:\n\`\`\`\n${cmdQuery.help(prefix)}\n\`\`\``);
+		}
+		else {
+			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
+			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\`\nYou may also check the documentation on the Wiki: https://gitlab.com/Magicrafter13/stembot/-/wikis/home\nAnd request features or submit bugs here: <https://gitlab.com/Magicrafter13/stembot/-/issues>`);
+		}
+	}
+
+	// Handle normal commands
 	// Recommend the cooldown code is moved inside the try-catch area, just to be safe
 	if (!client.commands.has(commandName)) return;
 
@@ -63,7 +78,7 @@ client.on('message', message => {
 	 * what execute returns.
 	 */
 	if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
-		return message.channel.send(`Invalid command syntax, usage:\n\`\`\`\n${command.name} ${command.usage}\n\`\`\``)
+		return message.channel.send(`Invalid number of arguments, see \`${prefix}help ${command.name}\`.`);
 
 	if (!cooldowns.has(command.name)) {
 		cooldowns.set(command.name, new Discord.Collection());
