@@ -8,7 +8,7 @@ module.exports = {
 	execute(message, args, settings) {
 		// Check if user has required permissions.
 		const guildMember = message.guild.member(message.author);
-		if (!guildMember.hasPermission('MANAGE_CHANNELS', { checkAdmin:true }) || !guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true }))
+		if (!guildMember.hasPermission('MANAGE_CHANNELS', { checkAdmin: true }) || !guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES');
 
 		const catDB = settings.get('categories');

@@ -6,6 +6,11 @@ module.exports = {
 	argsMin: 1,
 	argsMax: 2,
 	execute(message, args, settings) {
+		// Check if user has required permissions.
+		const guildMember = message.guild.member(message.author);
+		if (!guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true }))
+			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
+
 		const botRoleDB = settings.get('botRoles');
 		botRoleDB.get(message.guild.id)
 			.then(botRoles => {
