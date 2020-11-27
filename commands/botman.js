@@ -5,7 +5,6 @@ module.exports = {
 	cooldown: 0.5,
 	argsMin: 1,
 	argsMax: 2,
-	usage: `${this.name} action\n\n\tactions:\n-p --print - prints current list of bot roles\n-c --clear - clear list\n-a --add - add role to list\n-r --remove - remove role from list`,
 	execute(message, args, settings) {
 		const botRoleDB = settings.get('botRoles');
 		botRoleDB.get(message.guild.id)
@@ -58,5 +57,8 @@ module.exports = {
 				message.channel.send(`Current Bot Roles List: [ ${botRoles.map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`);
 			})
 		.catch(console.error);
-	}
+	},
+	help(prefix) {
+		return `${prefix}botman action\n\naction:\n\t-p --print - prints current list of bot roles\n\t-c --clear - clear list\n\t-a --add - add role to list\n\t-r --remove - remove role from list`;
+	},
 }

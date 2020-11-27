@@ -5,7 +5,6 @@ module.exports = {
 	cooldown: 0.5,
 	argsMin: 1,
 	argsMax: -1,
-	usage: '',
 	execute(message, args, settings) {
 		// Check if user has required permissions.
 		const guildMember = message.guild.member(message.author);
@@ -188,5 +187,8 @@ module.exports = {
 				catDB.set(message.guild.id, categories);
 			})
 		.catch(console.error);
+	},
+	help(prefix) {
+		return `${prefix}catman [-l|--list]\n\tlists current fields/categories being managed\n\n${prefix}catman role action (data)\n\tchange information about role's field/category\naction:\n\t-sc --set-category - sets which Discord channel category to use, where data is the name of the category\n\t-sp --set-prefix - all roles and channels created/added to this field will begin with data\n\t-a --add - adds a pre-existing role + channel whose names begin with prefix followed by data\n\t-c --create - same as -add, but will create a role and a channel instead of searching for ones that already exist\n\t-r --remove - removes the role + channel specified by data from the list of classes\n\t-d --delete - same as --remove, but also deletes the roll. Channel must be deleted manually for safety\n\t--purge - removes this field from the manager`;
 	}
 }
