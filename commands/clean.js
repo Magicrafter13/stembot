@@ -19,7 +19,7 @@ function purgeRoles(message, roles, masterID, subIDs) {
 
 module.exports = {
 	name: 'clean',
-	description: 'Cleans old roles from users. See \'catman\' and \'botman\'.',
+	description: 'Remove (clean) Roles.',
 	guildOnly: true,
 	cooldown: 0,
 	argsMin: 0,
@@ -66,6 +66,12 @@ module.exports = {
 		.catch(console.error);
 	},
 	help(prefix) {
-		return `${prefix}clean\n\tGoes through all fields being managed (by catman), and removes class roles from users who don't have the field's role\n\n${prefix}clean (-b|--bot)\n\tRemoves all bot roles (set with botman) from users who aren't bots.`
+		return `
+${prefix}clean
+${prefix}clean (-b | --bot)
+
+For each field in the manager (see catman), removes all class roles from users who don't have the field's role.
+\t-b --bot  Removes all roles in the manager (see botman) from non-bot users.
+`;
 	},
 };

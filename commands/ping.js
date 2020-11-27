@@ -1,6 +1,6 @@
 module.exports = {
 	name: 'ping',
-	description: 'Gives pseudo-accurate latency info.',
+	description: 'Latency.',
 	guildOnly: false,
 	cooldown: 5,
 	argsMin: 0,
@@ -9,6 +9,8 @@ module.exports = {
 		message.channel.send(`Pong! This message had a latency of ${Date.now() - message.createdTimestamp}ms.`);
 	},
 	help(prefix) {
-		return `${prefix}ping`;
+		return `
+${prefix}ping
+`
 	},
 };

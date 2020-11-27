@@ -1,6 +1,6 @@
 module.exports = {
 	name: 'botman',
-	description: 'Manage bot roles.',
+	description: 'Manage Bot Roles.',
 	guildOnly: true,
 	cooldown: 0.5,
 	argsMin: 1,
@@ -64,6 +64,14 @@ module.exports = {
 		.catch(console.error);
 	},
 	help(prefix) {
-		return `${prefix}botman action\n\naction:\n\t-p --print - prints current list of bot roles\n\t-c --clear - clear list\n\t-a --add - add role to list\n\t-r --remove - remove role from list`;
+		return `
+${prefix}botman (-p | -c)
+${prefix}botman (-a | -r) <role>
+
+\t-p --print   Shows which roles are currently saved in the manager.
+\t-c --clear   Clears the list of roles from the manager.
+\t-a --add     Adds role to the manager.
+\t-r --remove  Removes role from the manager.
+`;
 	},
 }

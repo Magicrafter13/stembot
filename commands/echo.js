@@ -1,6 +1,6 @@
 module.exports = {
 	name: 'echo',
-	description: 'Replies to you with your message.',
+	description: 'Copies you!',
 	guildOnly: false,
 	cooldown: 5,
 	argsMin: 1,
@@ -9,6 +9,10 @@ module.exports = {
 		message.channel.send(args.join(' '));
 	},
 	help(prefix) {
-		return `${prefix}echo text\n\tbot will respond with the text after echo`;
+		return `
+${prefix}echo <the_message>
+
+Bot replies with the_message.
+`;
 	},
 };

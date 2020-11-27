@@ -1,6 +1,6 @@
 module.exports = {
 	name: 'catman',
-	description: 'Field Category Manager',
+	description: 'Manage Class Subjects/Fields',
 	guildOnly: true,
 	cooldown: 0.5,
 	argsMin: 1,
@@ -189,6 +189,28 @@ module.exports = {
 		.catch(console.error);
 	},
 	help(prefix) {
-		return `${prefix}catman [-l|--list]\n\tlists current fields/categories being managed\n\n${prefix}catman role action (data)\n\tchange information about role's field/category\naction:\n\t-sc --set-category - sets which Discord channel category to use, where data is the name of the category\n\t-sp --set-prefix - all roles and channels created/added to this field will begin with data\n\t-a --add - adds a pre-existing role + channel whose names begin with prefix followed by data\n\t-c --create - same as -add, but will create a role and a channel instead of searching for ones that already exist\n\t-r --remove - removes the role + channel specified by data from the list of classes\n\t-d --delete - same as --remove, but also deletes the roll. Channel must be deleted manually for safety\n\t--purge - removes this field from the manager`;
-	}
+		return `
+${prefix}catman (-l | --list)
+${prefix}catman <role> (-sc | --set-category) <category_name>
+${prefix}catman <role> (-sp | --set-prefix) <prefix>
+${prefix}catman <role> --purge
+${prefix}catman <role> (-a | -c | -r | -d) <class_number>
+${prefix}catman <role> (-p | --print)
+
+\t-l --list           Shows the fields currently stored in the manager (roles).
+\t-sc --set-category  Sets the Channel Category for this field to a category called
+\t                    category_name (if one exists).
+\t-sp --set-prefix    Sets the role/channel prefix for this field.
+\t--purge             Deletes this field from the manager.
+\t-a --add            Adds a role beginning with the field prefix, a space, and
+\t                    class_number, and a channel beginning with field prefix, and
+\t                    class_number.
+\t-c --create         Creates a new role and channel, following the same convention
+\t                    above.
+\t-r --remove         Removes class_number from this field.
+\t-d --delete         Removes class_number from this field, then deletes the role.
+\t                    Channel must be deleted manually.
+\t-p --print          Displays the information the manager has on this field.
+`;
+	},
 }
