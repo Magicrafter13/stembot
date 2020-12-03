@@ -1,10 +1,21 @@
 const fs = require('fs'); // Node's native file system module
 const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
+const Keyv = require('keyv'); // Key-Value database
 
 // Bot config file
 //  - prefix: Command prefix for messages directed at bot
 //  - token:  Discord token for bot login
-const { prefix, token } = require('./config.json');
+const { prefix, token, dbUser, dbPass } = require('./config.json');
+
+// Setup Database
+const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
+const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
+botRoles.on('error', err => console.log('Connection Error', err));
+categories.on('error', err => console.log('Connection Error', err));
+
+let settings = new Map();
+settings.set('botRoles', botRoles);
+settings.set('categories', categories);
 
 const client = new Discord.Client(); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
@@ -25,6 +36,7 @@ const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will no
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
+	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
 });
 
 // Handle messages from users (requires channel read permission)
@@ -34,6 +46,21 @@ client.on('message', message => {
 	const args = message.content.slice(prefix.length).trim().split(/ +/); // looks for arguments and assigns them
 	const commandName = args.shift().toLowerCase(); // takes command and makes it lowercase/assigns it to variable
 
+	// Handle help
+	if (commandName === 'help') {
+		if (args.length) {
+			const cmdQuery = client.commands.get(args.shift().toLowerCase());
+			if (!cmdQuery) return message.channel.send(`Command does not exist!`);
+
+			return message.channel.send(`${cmdQuery.name} - ${cmdQuery.description}\nUsage:\n\`\`\`${cmdQuery.help(prefix)}\`\`\`\nNeed more help? Visit the wiki page for this command: <https://gitlab.com/Magicrafter13/stembot/-/wikis/Commands/${cmdQuery.name}>`);
+		}
+		else {
+			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
+			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\`\nYou may also check the documentation on the Wiki: https://gitlab.com/Magicrafter13/stembot/-/wikis/home\nAnd request features or submit bugs here: <https://gitlab.com/Magicrafter13/stembot/-/issues>`);
+		}
+	}
+
+	// Handle normal commands
 	// Recommend the cooldown code is moved inside the try-catch area, just to be safe
 	if (!client.commands.has(commandName)) return;
 
@@ -50,8 +77,8 @@ client.on('message', message => {
 	 * function return different values (error codes), and then we can call upon command.usage based on
 	 * what execute returns.
 	 */
-	if (command.argsMax != -1 && (args.length < command.argsMin || args.length > command.argsMax))
-		return message.channel.send(`Invalid command syntax, usage:\n\`\`\`\n${command.name} ${command.usage}\n\`\`\``)
+	if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
+		return message.channel.send(`Invalid number of arguments, see \`${prefix}help ${command.name}\`.`);
 
 	if (!cooldowns.has(command.name)) {
 		cooldowns.set(command.name, new Discord.Collection());
@@ -76,7 +103,7 @@ client.on('message', message => {
 	setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
 	try {
-		command.execute(message, args); // attempts to execute command
+		command.execute(message, args, settings); // attempts to execute command
 	} catch (error) {
 		console.error(error);
 		message.reply('there was an error trying to execute that command!'); // error message for user
