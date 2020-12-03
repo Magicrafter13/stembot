@@ -59,7 +59,7 @@ module.exports = {
 		catDB.get(message.guild.id)
 			.then(categories => {
 				if (categories === undefined)
-					return message.channel.send(`No class information exists, set class categories with \`catman\`.`);
+					return message.channel.send(`No field information exists, set fields with \`catman\`.`);
 
 				categories.forEach(catData => purgeRoles(message, roles, catData.id, catData.roles));
 			})

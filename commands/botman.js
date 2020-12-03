@@ -55,7 +55,7 @@ module.exports = {
 						else message.channel.send('3rd argument must be type: Role');
 						break;
 					default:
-						return message.channel.send(`'${cmd}' is not a valid action.`);
+						return message.channel.send(`'${cmd}' is not a valid action. See \`help botman\`.`);
 				}
 
 				// Show user updated list
