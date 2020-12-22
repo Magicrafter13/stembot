@@ -1,3 +1,7 @@
+function editMessage(message, catData) {
+	return;
+}
+
 module.exports = {
 	name: 'catman',
 	description: 'Manage Class Subjects/Fields',
@@ -29,6 +33,22 @@ module.exports = {
 				// Category information for specified role
 				let catData = categories.find(c => c.id === role.id);
 				const place = categories.indexOf(catData);
+				if (catData !== undefined) {
+					// Update catData (when users have data from older version of bot)
+					// From Version 3
+					if (catData.emoji === undefined) {
+						catData = {
+							id: catData.id,
+							channel: catData.channel,
+							prefix: catData.prefix,
+							msg: undefined,
+							classes: catData.classes,
+							roles: catData.roles,
+							channels: catData.channels,
+							emoji: catData.classes.map(c => undefined),
+						};
+					}
+				}
 
 				let className;
 
@@ -44,9 +64,11 @@ module.exports = {
 								id: role.id,
 								channel: category.id,
 								prefix: undefined,
+								msg: undefined,
 								classes: [],  // array of integers
 								roles: [],    // array of role ids
 								channels: [], // array of channel ids
+								emoji: [],    // array of emoji
 							});
 							message.channel.send(`Created field info for ${role.toString()}, under category ${category.toString()}.`);
 						}
@@ -64,9 +86,11 @@ module.exports = {
 								id: role.id,
 								channel: undefined,
 								prefix: prefix,
+								msg: undefined,
 								classes: [],
 								roles: [],
 								channels: [],
+								emoji: [],
 							});
 							message.channel.send(`Created field info for ${role.toString()}, with prefix \`${prefix}\`.`);
 						}
@@ -76,13 +100,49 @@ module.exports = {
 							message.channel.send(`Updated field prefix to \`${prefix}\`.`);
 						}
 						break;
+					case '-cm': case '--create-message':
+						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (catData.classes.length === 0) return message.channel.send('Field has no classes yet, message would be pointless!');
+						if (catData.emoji.length === 0) return message.channel.send('At least one emoji needs to be added to make a reaction message. Use --add-emoji.');
+						//if (catData.msg !== undefined) return message.channel.send(`Message already exists: ${catData.msg.url}\nPlease delete this message first.`);
+
+						const channelStr = args.shift();
+						const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
+						if (channel === undefined) return message.channel.send('Channel doesn\'t exist.');
+
+						channel.send('Creating message...')
+							.then(newMessage => {
+								catData.msg = newMessage.id;
+								editMessage(newMessage, catData);
+								categories[place] = catData;
+
+								catDB.set(message.guild.id, categories);
+							})
+						.catch(console.error);
+						break;
+					case '-se': case '--set-emoji':
+						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
+
+						className = args.shift().toLowerCase();
+						const newEmoji = args.shift();
+
+						const theClass = catData.classes.indexOf(className);
+						if (theClass < 0) return message.channel.send('That class is not being managed/does not exist.');
+						if (catData.emoji.indexOf(theClass) >= 0) return message.channel.send('That emoji is already in use for this field!');
+						catData.emoji[theClass] = newEmoji;
+						categories[place] = catData;
+						message.channel.send(`Reaction emoji updated.`);
+
+						editMessage(message, catData);
+						break;
 					case '-p': case '--print':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 
 						const classes = `Classes: [ ${catData.classes.join(', ')} ]`;
 						const roles = `Roles: [ ${catData.roles.map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
 						const channels = `Channels: [ ${catData.channels.map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
-						return message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\n${classes}\n${roles}\n${channels}`);
+						const emoji = `Emoji: [ ${catData.emoji.join(', ')} ]`;
+						return message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\nmessage: ${catData.msg !== undefined ? catData.msg.url : 'no message'}\n${classes}\n${roles}\n${channels}\n${emoji}`);
 					case '-a': case '--add':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
@@ -100,6 +160,7 @@ module.exports = {
 						catData.classes.push(className);
 						catData.roles.push(classRole.id);
 						catData.channels.push(classChannel.id);
+						catData.emoji.push(undefined);
 						categories[place] = catData;
 						break;
 					case '-c': case '--create':
@@ -131,6 +192,7 @@ module.exports = {
 										catData.classes.push(className);
 										catData.roles.push(newRole.id);
 										catData.channels.push(newChannel.id);
+										catData.emoji.push(undefined);
 										categories[place] = catData;
 
 										catDB.set(message.guild.id, categories);
@@ -151,6 +213,7 @@ module.exports = {
 						catData.classes.splice(classIndex, 1);
 						catData.roles.splice(classIndex, 1);
 						catData.channels.splice(classIndex, 1);
+						catData.emoji.splice(classIndex, 1);
 						categories[place] = catData;
 						message.channel.send(`Removed \`${className}\` from list of classes.`);
 						break;
@@ -177,6 +240,7 @@ module.exports = {
 								categories[place] = catData;
 							})
 						.catch(console.error);
+						catData.emoji.splice(fieldIndex, 1);
 						break;
 					case '--purge':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
@@ -193,24 +257,27 @@ module.exports = {
 ${prefix}catman (-l | --list)
 ${prefix}catman <role> (-sc | --set-category) <category_name>
 ${prefix}catman <role> (-sp | --set-prefix) <prefix>
+${prefix}catman <role> (-cm | --create-message) <channel>
 ${prefix}catman <role> --purge
 ${prefix}catman <role> (-a | -c | -r | -d) <class_number>
 ${prefix}catman <role> (-p | --print)
 
-\t-l --list           Shows the fields currently stored in the manager (roles).
-\t-sc --set-category  Sets the Channel Category for this field to a category called
-\t                    category_name (if one exists).
-\t-sp --set-prefix    Sets the role/channel prefix for this field.
-\t--purge             Deletes this field from the manager.
-\t-a --add            Adds a role beginning with the field prefix, a space, and
-\t                    class_number, and a channel beginning with field prefix, and
-\t                    class_number.
-\t-c --create         Creates a new role and channel, following the same convention
-\t                    above.
-\t-r --remove         Removes class_number from this field.
-\t-d --delete         Removes class_number from this field, then deletes the role.
-\t                    Channel must be deleted manually.
-\t-p --print          Displays the information the manager has on this field.
+\t-l --list             Shows the fields currently stored in the manager (roles).
+\t-sc --set-category    Sets the Channel Category for this field to a category called
+\t                      category_name (if one exists).
+\t-sp --set-prefix      Sets the role/channel prefix for this field.
+\t-cm --create-message  Creates a message in <channel> where users can click on
+\t                      reactions to receive specific roles.
+\t--purge               Deletes this field from the manager.
+\t-a --add              Adds a role beginning with the field prefix, a space, and
+\t                      class_number, and a channel beginning with field prefix, and
+\t                      class_number.
+\t-c --create           Creates a new role and channel, following the same convention
+\t                      above.
+\t-r --remove           Removes class_number from this field.
+\t-d --delete           Removes class_number from this field, then deletes the role.
+\t                      Channel must be deleted manually.
+\t-p --print            Displays the information the manager has on this field.
 `;
 	},
 }

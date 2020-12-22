@@ -17,7 +17,7 @@ let settings = new Map();
 settings.set('botRoles', botRoles);
 settings.set('categories', categories);
 
-const client = new Discord.Client(); // register Discord client
+const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] }); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
 
@@ -37,6 +37,43 @@ const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will no
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
 	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+	if (reaction.partial) {
+		try {
+			await reaction.fetch();
+		}
+		catch (error) {
+			console.error('Error occured while fetching message: ', error);
+			return
+		}
+	}
+	// Check if message is one of ours
+	if (reaction.message.author.client !== client) return;
+	// Now check if message has field associated with it (reaction role message)
+	const guildFields = settings.get('categories');
+	guildFields.get(reaction.message.guild.id)
+		.then(fields => {
+			if (fields === undefined) return; // Guild has no managed fields
+
+			const field = fields.find(f => f.msg === reaction.message.id);
+			if (field === undefined) {
+				console.log(`Undefined field, fields: ${JSON.stringify(fields)}`);
+				return;
+			}
+			const emoji = field.emoji.indexOf(reaction.emoji.toString());
+			if (emoji < 0) return; // Reacted with emoji not in list
+			const roleID = field.roles[emoji];
+			reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(roleID)
+					.then(role => member.roles.add(role).then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error)
+		})
+	.catch(console.error);
 });
 
 // Handle messages from users (requires channel read permission)
