@@ -1,4 +1,30 @@
+const Discord = require('discord.js');
+
 function editMessage(message, catData) {
+	let classes = '';
+	for (let i = 0; i < catData.classes.length; i++)
+		if (catData.emoji[i] !== undefined)
+			classes += `${catData.emoji[i]} - ${catData.prefix} ${catData.classes[i]}\n`;
+		
+	const embed = new Discord.MessageEmbed()
+	.setColor('#0099ff')
+	.setTitle(`Class Roles for ${message.guild.channels.cache.find(channel => channel.id === catData.channel).name}`)
+	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
+	.setDescription('Test')
+	//.setThumbnail('link')
+	.addFields({ name: 'Classes', value: classes })
+	//.setImage('link')
+	.setTimestamp()
+	.setFooter('WIP Dev Build - Caution is Advised!');
+
+	message.edit(embed)
+		.then(() => {
+			catData.emoji.forEach(emoji => {
+				if (emoji !== undefined)
+					message.react(emoji);
+			});
+		})
+	.catch(console.error);
 	return;
 }
 
