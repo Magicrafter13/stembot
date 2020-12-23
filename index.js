@@ -63,7 +63,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 			reaction.message.guild.members.fetch(user)
 				.then(member => {
 					reaction.message.guild.roles.fetch(theClass.role)
-					.then(role => member.roles.add(role).then().catch(console.error))
+					.then(role => member.roles.add(role, 'User reacted to role embed.').then().catch(console.error))
 					.catch(console.error);
 				})
 			.catch(console.error)
@@ -95,7 +95,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 			reaction.message.guild.members.fetch(user)
 				.then(member => {
 					reaction.message.guild.roles.fetch(theClass.role)
-					.then(role => member.roles.remove(role).then().catch(console.error))
+					.then(role => member.roles.remove(role, 'User reacted to role embed.').then().catch(console.error))
 					.catch(console.error);
 				})
 			.catch(console.error)
