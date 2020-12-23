@@ -44,8 +44,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
 		try { await reaction.fetch() }
 		catch (error) { return console.error('Error occured while fetching message: ', error) }
 	}
-	// Check if message is one of ours
-	if (reaction.message.author !== client.user) return;
+	// Check if message from bot
+	if (user.bot) return;
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
@@ -76,8 +76,8 @@ client.on('messageReactionRemove', async (reaction, user) => {
 		try { await reaction.fetch() }
 		catch (error) { return console.error('Error occured while fetching message: ', error) }
 	}
-	// Check if message is one of ours
-	if (reaction.message.author !== client.user) return;
+	// Check if message from bot
+	if (user.bot) return;
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
