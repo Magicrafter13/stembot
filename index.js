@@ -53,17 +53,16 @@ client.on('messageReactionAdd', async (reaction, user) => {
 		.then(fields => {
 			if (fields === undefined) return; // Guild has no managed fields
 
-			const field = fields.find(f => f.msg === reaction.message.id);
+			const field = fields.find(f => f.reactor.message === reaction.message.id);
 			if (field === undefined) {
 				console.log(`Undefined field, fields: ${JSON.stringify(fields)}`);
 				return;
 			}
-			const emoji = field.emoji.indexOf(reaction.emoji.toString());
-			if (emoji < 0) return; // Reacted with emoji not in list
-			const roleID = field.roles[emoji];
+			const theClass = field.classes.find(c => c.emoji === reaction.emoji.toString());
+			if (theClass === undefined) return; // Reacted with emoji not in list
 			reaction.message.guild.members.fetch(user)
 				.then(member => {
-					reaction.message.guild.roles.fetch(roleID)
+					reaction.message.guild.roles.fetch(theClass.role)
 					.then(role => member.roles.add(role).then().catch(console.error))
 					.catch(console.error);
 				})
@@ -86,17 +85,16 @@ client.on('messageReactionRemove', async (reaction, user) => {
 		.then(fields => {
 			if (fields === undefined) return; // Guild has no managed fields
 
-			const field = fields.find(f => f.msg === reaction.message.id);
+			const field = fields.find(f => f.reactor.message === reaction.message.id);
 			if (field === undefined) {
 				console.log(`Undefined field, fields: ${JSON.stringify(fields)}`);
 				return;
 			}
-			const emoji = field.emoji.indexOf(reaction.emoji.toString());
-			if (emoji < 0) return; // Reacted with emoji not in list
-			const roleID = field.roles[emoji];
+			const theClass = field.classes.find(c => c.emoji === reaction.emoji.toString());
+			if (theClass === undefined) return; // Reacted with emoji not in list
 			reaction.message.guild.members.fetch(user)
 				.then(member => {
-					reaction.message.guild.roles.fetch(roleID)
+					reaction.message.guild.roles.fetch(theClass.role)
 					.then(role => member.roles.remove(role).then().catch(console.error))
 					.catch(console.error);
 				})

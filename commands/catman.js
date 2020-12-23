@@ -1,10 +1,7 @@
 const Discord = require('discord.js');
 
 function editMessage(message, catData) {
-	let classes = '';
-	for (let i = 0; i < catData.classes.length; i++)
-		if (catData.emoji[i] !== undefined)
-			classes += `${catData.emoji[i]} - ${catData.prefix} ${catData.classes[i]}\n`;
+	const classes = catData.classes.filter(c => c.emoji !== null).map(c => `${c.emoji} - ${catData.prefix} ${c.name}`).join('\n');
 		
 	const embed = new Discord.MessageEmbed()
 	.setColor('#0099ff')
@@ -12,17 +9,22 @@ function editMessage(message, catData) {
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
 	.setDescription('Test')
 	//.setThumbnail('link')
-	.addFields({ name: 'Classes', value: classes })
+	.addFields({ name: 'Classes', value: classes === '' ? 'None set (use --set-emoji).' : classes })
 	//.setImage('link')
 	.setTimestamp()
 	.setFooter('WIP Dev Build - Caution is Advised!');
 
-	message.edit(embed)
-		.then(() => {
-			catData.emoji.forEach(emoji => {
-				if (emoji !== undefined)
-					message.react(emoji);
-			});
+	const channel = message.guild.channels.cache.find(channel => channel.id === catData.reactor.channel)
+	channel.messages.fetch(catData.reactor.message)
+		.then(msg => {
+			msg.edit('', embed)
+				.then(() => {
+					catData.classes.forEach(c => {
+						if (c.emoji !== null)
+							msg.react(c.emoji);
+					});
+				})
+			.catch(console.error);
 		})
 	.catch(console.error);
 	return;
@@ -62,16 +64,27 @@ module.exports = {
 				if (catData !== undefined) {
 					// Update catData (when users have data from older version of bot)
 					// From Version 3
-					if (catData.emoji === undefined) {
+					if (catData.reactor === undefined) {
 						catData = {
 							id: catData.id,
 							channel: catData.channel,
 							prefix: catData.prefix,
-							msg: undefined,
-							classes: catData.classes,
-							roles: catData.roles,
-							channels: catData.channels,
-							emoji: catData.classes.map(c => undefined),
+							reactor: {
+								message: undefined, // message ID
+								channel: undefined, // guild (text) channel ID
+							},
+							classes: (() => {
+								let f = [];
+								for (let i = 0; i < catData.classes.length; i++) {
+									f.push({
+										name: catData.classes[i],
+										role: catData.roles[i],
+										channel: catData.channels[i],
+										emoji: null,
+									});
+								}
+								return f;
+							}) (),
 						};
 					}
 				}
@@ -90,11 +103,11 @@ module.exports = {
 								id: role.id,
 								channel: category.id,
 								prefix: undefined,
-								msg: undefined,
-								classes: [],  // array of integers
-								roles: [],    // array of role ids
-								channels: [], // array of channel ids
-								emoji: [],    // array of emoji
+								reactor: {
+									message: undefined,
+									channel: undefined,
+								},
+								classes: [],
 							});
 							message.channel.send(`Created field info for ${role.toString()}, under category ${category.toString()}.`);
 						}
@@ -112,11 +125,11 @@ module.exports = {
 								id: role.id,
 								channel: undefined,
 								prefix: prefix,
-								msg: undefined,
+								reactor: {
+									message: undefined,
+									channel: undefined,
+								},
 								classes: [],
-								roles: [],
-								channels: [],
-								emoji: [],
 							});
 							message.channel.send(`Created field info for ${role.toString()}, with prefix \`${prefix}\`.`);
 						}
@@ -129,7 +142,6 @@ module.exports = {
 					case '-cm': case '--create-message':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 						if (catData.classes.length === 0) return message.channel.send('Field has no classes yet, message would be pointless!');
-						if (catData.emoji.length === 0) return message.channel.send('At least one emoji needs to be added to make a reaction message. Use --add-emoji.');
 						//if (catData.msg !== undefined) return message.channel.send(`Message already exists: ${catData.msg.url}\nPlease delete this message first.`);
 
 						const channelStr = args.shift();
@@ -138,8 +150,11 @@ module.exports = {
 
 						channel.send('Creating message...')
 							.then(newMessage => {
-								catData.msg = newMessage.id;
-								editMessage(newMessage, catData);
+								catData.reactor = {
+									message: newMessage.id,
+									channel: channel.id,
+								};
+								editMessage(message, catData);
 								categories[place] = catData;
 
 								catDB.set(message.guild.id, categories);
@@ -152,23 +167,25 @@ module.exports = {
 						className = args.shift().toLowerCase();
 						const newEmoji = args.shift();
 
-						const theClass = catData.classes.indexOf(className);
-						if (theClass < 0) return message.channel.send('That class is not being managed/does not exist.');
-						if (catData.emoji.indexOf(theClass) >= 0) return message.channel.send('That emoji is already in use for this field!');
-						catData.emoji[theClass] = newEmoji;
+						const theClass = catData.classes.find(fClass => fClass.name === className);
+						if (theClass === undefined) return message.channel.send('That class is not being managed/does not exist.');
+						if (catData.classes.find(f => f.emoji === newEmoji) !== undefined) return message.channel.send('That emoji is already in use for this field!');
+						theClass.emoji = newEmoji;
 						categories[place] = catData;
-						message.channel.send(`Reaction emoji updated.`);
+						message.channel.send('Reaction emoji updated.');
 
 						editMessage(message, catData);
 						break;
 					case '-p': case '--print':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 
-						const classes = `Classes: [ ${catData.classes.join(', ')} ]`;
-						const roles = `Roles: [ ${catData.roles.map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
-						const channels = `Channels: [ ${catData.channels.map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
-						const emoji = `Emoji: [ ${catData.emoji.join(', ')} ]`;
-						return message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\nmessage: ${catData.msg !== undefined ? catData.msg.url : 'no message'}\n${classes}\n${roles}\n${channels}\n${emoji}`);
+						console.log(`type: ${typeof catData.classes}`);
+
+						const classes = `Classes: [ ${catData.classes.map(c => c.name).join(', ')} ]`;
+						const roles = `Roles: [ ${catData.classes.map(c => c.role).map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
+						const channels = `Channels: [ ${catData.classes.map(c => c.channel).map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
+						const emoji = `Emoji: [ ${catData.classes.map(c => c.emoji).join(', ')} ]`;
+						return message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\nReact Role Message: ${catData.reactor.channel !== undefined ? message.guild.channels.cache.find(channel => channel.id === catData.reactor.channel).messages.cache.find(msg => msg.id === catData.reactor.message).url : 'no message'}\n${classes}\n${roles}\n${channels}\n${emoji}`);
 					case '-a': case '--add':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
@@ -183,10 +200,12 @@ module.exports = {
 
 						message.channel.send(`Adding ${classRole.toString()} and ${classChannel.toString()} to ${role.toString()} field.`);
 
-						catData.classes.push(className);
-						catData.roles.push(classRole.id);
-						catData.channels.push(classChannel.id);
-						catData.emoji.push(undefined);
+						catData.classes.push({
+							name: className,
+							role: classRole.id,
+							channel: classChannel.id,
+							emoji: null,
+						});
 						categories[place] = catData;
 						break;
 					case '-c': case '--create':
@@ -195,12 +214,12 @@ module.exports = {
 						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						if (catData.classes.indexOf(className) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
+						if (catData.classes.find(c => c.name === className) !== undefined) return message.channel.send(`${role.toString()} already contains this class.`);
 
 						message.guild.roles.create({
 							data: {
 								name: `${catData.prefix} ${className}`,
-								position: catData.roles.length === 0 ? null : message.guild.roles.cache.find(role => role.id === catData.roles[catData.roles.length - 1]).position,
+								position: catData.classes.length === 0 ? null : message.guild.roles.cache.find(role => role.id === catData.classes[catData.classes.length - 1].role).position,
 							},
 							reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
 						})
@@ -211,14 +230,16 @@ module.exports = {
 									reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
 								})
 									.then(newChannel => {
-										if (catData.channels.length)
-											newChannel.setPosition(message.guild.channels.cache.find(channel => channel.id === catData.channels[catData.channels.length - 1]).rawPosition);
+										if (catData.classes.length)
+											newChannel.setPosition(message.guild.channels.cache.find(channel => channel.id === catData.classes[catData.classes.length - 1].channel).rawPosition);
 										message.channel.send(`Adding ${newRole.toString()} and ${newChannel.toString()} to ${role.toString()} info.`);
 
-										catData.classes.push(className);
-										catData.roles.push(newRole.id);
-										catData.channels.push(newChannel.id);
-										catData.emoji.push(undefined);
+										catData.classes.push({
+											name: className,
+											role: newRole.id,
+											channel: newChannel.id,
+											emoji: null,
+										});
 										categories[place] = catData;
 
 										catDB.set(message.guild.id, categories);
@@ -233,13 +254,10 @@ module.exports = {
 						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						const classIndex = catData.classes.indexOf(className);
+						const classIndex = catData.classes.indexOf(catData.classes.find(c => c.name === className));
 						if (classIndex === -1) return message.channel.send(`${role.toString()} doesn't contain this class.`);
 
 						catData.classes.splice(classIndex, 1);
-						catData.roles.splice(classIndex, 1);
-						catData.channels.splice(classIndex, 1);
-						catData.emoji.splice(classIndex, 1);
 						categories[place] = catData;
 						message.channel.send(`Removed \`${className}\` from list of classes.`);
 						break;
@@ -249,24 +267,26 @@ module.exports = {
 						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						const fieldIndex = catData.classes.indexOf(className);
+						const fieldIndex = catData.classes.indexOf(catData.classes.find(c => c.name === className));
 						if (fieldIndex === -1) return message.channel.send(`${role.toString()} doesn't contain this class.`);
 
 						catData.classes.splice(fieldIndex, 1);
-						message.guild.roles.fetch(catData.roles.splice(fieldIndex, 1)[0])
+						message.guild.roles.fetch(catData.classes[fieldIndex].role)
 							.then(oldRole => {
 								oldRole.delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
-								.then(message.channel.send('Role deleted.'))
+									.then(() => {
+										message.channel.send('Role deleted.');
+										const oldChannelID = catData.channels[fieldIndex].channel;
+										message.channel.send(`You may now delete ${message.guild.channels.cache.find(channel => channel.id === oldChannelID).toString()}.`);
+										/*message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
+										.then(message.channel.send(`Channel deleted.`))
+										.catch(console.error);*/
+										catData.classes.splice(fieldIndex, 1);
+										categories[place] = catData;
+									})
 								.catch(console.error);
-								const oldChannelID = catData.channels.splice(fieldIndex, 1)[0];
-								message.channel.send(`You may now delete ${message.guild.channels.cache.find(channel => channel.id === oldChannelID).toString()}.`);
-								/*message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
-								.then(message.channel.send(`Channel deleted.`))
-								.catch(console.error);*/
-								categories[place] = catData;
 							})
 						.catch(console.error);
-						catData.emoji.splice(fieldIndex, 1);
 						break;
 					case '--purge':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
@@ -305,5 +325,8 @@ ${prefix}catman <role> (-p | --print)
 \t                      Channel must be deleted manually.
 \t-p --print            Displays the information the manager has on this field.
 `;
+	},
+	editMessage(message, catData) {
+		return editMessage(message, catData);
 	},
 }
