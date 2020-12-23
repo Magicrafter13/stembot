@@ -9,7 +9,7 @@ function editMessage(message, catData) {
 	.setColor('#0099ff')
 	.setTitle(`Class Roles for ${message.guild.channels.cache.find(channel => channel.id === catData.channel).name}`)
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
-	.setDescription('Test')
+	.setDescription(catData.reactor.text)
 	//.setThumbnail('link')
 	.addFields({ name: 'Classes', value: classes === '' ? 'None set (use --set-emoji).' : classes })
 	//.setImage('link')
@@ -30,6 +30,12 @@ function editMessage(message, catData) {
 		})
 	.catch(console.error);
 	return;
+}
+
+function deleteMessage(guild, reactor) {
+	return guild.channels.cache.find(c => c.id === reactor.channel).messages.fetch(reactor.message)
+	.then(message => message.delete({ reason: 'Old react-role message being deleted for new one.' }))
+	.catch(console.error);
 }
 
 module.exports = {
@@ -74,6 +80,7 @@ module.exports = {
 							reactor: {
 								message: undefined, // message ID
 								channel: undefined, // guild (text) channel ID
+								text: undefined,    // message body of embed
 							},
 							classes: (() => {
 								let f = [];
@@ -108,6 +115,7 @@ module.exports = {
 								reactor: {
 									message: undefined,
 									channel: undefined,
+									text: 'React to this message for roles!',
 								},
 								classes: [],
 							});
@@ -131,6 +139,7 @@ module.exports = {
 								reactor: {
 									message: undefined,
 									channel: undefined,
+									text: 'React to this message for roles!',
 								},
 								classes: [],
 							});
@@ -152,11 +161,16 @@ module.exports = {
 						const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
 						if (channel === undefined) return message.channel.send('Channel doesn\'t exist.');
 
-						channel.send('Creating message...')
+						// Delete previous reaction message if there is one.
+						if (catData.reactor.message !== undefined)
+							deleteMessage(message.guild, catData.reactor);
+
+						channel.send('Please wait while embed is generated...')
 							.then(newMessage => {
 								catData.reactor = {
 									message: newMessage.id,
 									channel: channel.id,
+									text: args.length > 0 ? args.join(' ') : catData.reactor.text,
 								};
 								editMessage(message, catData);
 								categories[place] = catData;
@@ -302,10 +316,8 @@ module.exports = {
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 
 						// Cleanup react-role message if one exists.
-						if (catData.reactor.message !== undefined) {
-							message.guild.channels.cache.find(c => c.id === catData.reactor.channel).messages.fetch(catData.reactor.message)
-							.then(msg => msg.delete()).catch(console.error);
-						}
+						if (catData.reactor.message !== undefined)
+							deleteMessage(message.guild, catData.reactor);
 
 						categories.splice(place, 1);
 						message.channel.send(`${role.toString()} field no longer being managed.`);
