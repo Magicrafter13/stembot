@@ -50,19 +50,30 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
 	guildFields.get(reaction.message.guild.id)
-		.then(fields => {
-			if (fields === undefined) return; // Guild has no managed fields
+		.then(fieldMan => {
+			if (!fieldMan) return; // Guild has no managed fields
 
-			const field = fields.find(f => f.reactor.message === reaction.message.id);
-			if (field === undefined) {
-				console.log(`Undefined field, fields: ${JSON.stringify(fields)}`);
-				return;
+			// Check if message was for fields or classes.
+			const type = reaction.message.id === fieldMan.reactor.message ? 'field' : 'class';
+
+			const field = type === 'class' ? fieldMan.fields.find(f => f.reactor.message === reaction.message.id) : null;
+
+			const thing = type === 'field'
+				? fieldMan.fields.find(f => f.emoji === reaction.emoji.toString())
+				: field.classes.find(c => c.emoji === reaction.emoji.toString());
+			if (!thing) return; // Reacted with emoji not in list
+
+			// If this reaction message is for a class, then make sure the user has the proper field role as well.
+			if (type === 'class') {
+				const fieldRole = reaction.message.guild.roles.cache.find(role => role.id === field.id);
+				const member = reaction.message.guild.members.cache.find(member => member.user === user);
+
+				if (!member.roles.cache.has(fieldRole)) return;
 			}
-			const theClass = field.classes.find(c => c.emoji === reaction.emoji.toString());
-			if (theClass === undefined) return; // Reacted with emoji not in list
+
 			reaction.message.guild.members.fetch(user)
 				.then(member => {
-					reaction.message.guild.roles.fetch(theClass.role)
+					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
 					.then(role => member.roles.add(role, 'User reacted to role embed.').then().catch(console.error))
 					.catch(console.error);
 				})
@@ -82,19 +93,20 @@ client.on('messageReactionRemove', async (reaction, user) => {
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
 	guildFields.get(reaction.message.guild.id)
-		.then(fields => {
-			if (fields === undefined) return; // Guild has no managed fields
+		.then(fieldMan => {
+			if (!fieldMan) return; // Guild has no managed fields
 
-			const field = fields.find(f => f.reactor.message === reaction.message.id);
-			if (field === undefined) {
-				console.log(`Undefined field, fields: ${JSON.stringify(fields)}`);
-				return;
-			}
-			const theClass = field.classes.find(c => c.emoji === reaction.emoji.toString());
-			if (theClass === undefined) return; // Reacted with emoji not in list
+			// Check if message was for fields or classes.
+			const type = reaction.message.id === fieldMan.reactor.message ? 'field' : 'class';
+
+			const thing = type === 'field'
+				? fieldMan.fields.find(f => f.emoji === reaction.emoji.toString())
+				: fieldMan.fields.find(f => f.reactor.message === reaction.message.id).classes.find(c => c.emoji === reaction.emoji.toString());
+			if (!thing) return; // Reacted with emoji not in list
+
 			reaction.message.guild.members.fetch(user)
 				.then(member => {
-					reaction.message.guild.roles.fetch(theClass.role)
+					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
 					.then(role => member.roles.remove(role, 'User reacted to role embed.').then().catch(console.error))
 					.catch(console.error);
 				})

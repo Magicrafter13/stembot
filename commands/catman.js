@@ -1,29 +1,36 @@
 const Discord = require('discord.js');
 
-function editMessage(message, catData) {
-	if (catData.reactor.message === undefined) return;
+function editMessage(message, data) {
+	if (data.reactor.message === undefined) return;
 
-	const classes = catData.classes.filter(c => c.emoji !== null).map(c => `${c.emoji} - ${catData.prefix} ${c.name}`).join('\n');
+	// Check if 'data' is from 'fieldMan' or 'fieldData'
+	const type = data.fields !== undefined ? 'man' : 'data';
+
+	const things = type === 'man'
+		? data.fields.filter(f => f.emoji !== null).map(f => `${f.emoji} - ${f.prefix} Classes`).join('\n')
+		: data.classes.filter(c => c.emoji !== null).map(c => `${c.emoji} - ${data.prefix} ${c.name}`).join('\n');
 		
 	const embed = new Discord.MessageEmbed()
 	.setColor('#0099ff')
-	.setTitle(`Class Roles for ${message.guild.channels.cache.find(channel => channel.id === catData.channel).name}`)
+	.setTitle(type === 'man'
+		? 'Field Roles for this server!'
+		: `Class Roles for ${message.guild.channels.cache.find(channel => channel.id === data.channel).name}`)
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
-	.setDescription(catData.reactor.text)
+	.setDescription(data.reactor.text)
 	//.setThumbnail('link')
-	.addFields({ name: 'Classes', value: classes === '' ? 'None set (use --set-emoji).' : classes })
+	.addFields({ name: type === 'man' ? 'Fields' : 'Classes', value: things === '' ? 'None set (use --set-emoji).' : things })
 	//.setImage('link')
 	.setTimestamp()
 	.setFooter('WIP Dev Build - Caution is Advised!');
 
-	const channel = message.guild.channels.cache.find(channel => channel.id === catData.reactor.channel)
-	channel.messages.fetch(catData.reactor.message)
+	const channel = message.guild.channels.cache.find(channel => channel.id === data.reactor.channel)
+	channel.messages.fetch(data.reactor.message)
 		.then(msg => {
 			msg.edit('', embed)
 				.then(() => {
-					catData.classes.forEach(c => {
-						if (c.emoji !== null)
-							msg.react(c.emoji);
+					(type === 'man' ? data.fields : data.classes).forEach(t => {
+						if (t.emoji !== null)
+							msg.react(t.emoji);
 					});
 				})
 			.catch(console.error);
@@ -54,12 +61,88 @@ module.exports = {
 		const catDB = settings.get('categories');
 		catDB.get(message.guild.id)
 			.then(val => {
-				// JSON stringify doesn't support Map objects...
-				let categories = val === undefined ? [] : val;
+				let fieldMan;
+
+				// Guild has no data in database yet
+				if (val === undefined) {
+					fieldMan = {
+						fields: [],
+						reactor: {
+							message: null,
+							channel: null,
+							text: null,
+						},
+					};
+				}
+				else {
+					fieldMan = val;
+
+					// Guild has version 3.0 data = upgrade to 4
+					if (val.fields === undefined) {
+						fieldMan = {
+							fields: val,
+							reactor: {
+								message: null,
+								channel: null,
+								text: null,
+							},
+						};
+					}
+				}
 
 				// Check if no arguments were provided, or first argument is list command
 				if (!args.length || args[0] === '-l' || args[0] === '--list')
-					return message.channel.send(`The following roles have field information:\n${val.map(arr => message.guild.roles.cache.find(role => role.id === arr.id).toString()).join('\n')}`)
+					return message.channel.send(`The following roles have field information:\n${fieldMan.fields.map(arr => message.guild.roles.cache.find(role => role.id === arr.id).toString()).join('\n')}`)
+
+				// Set field's emoji for react-role message.
+				if (args[0] === '-se' || args[0] === '--set-emoji') {
+					args.shift();
+
+					// Get role request from message
+					const roleStr = args.shift();
+					const role = message.guild.roles.cache.find(role => role.toString() === roleStr);
+					if (!role) return message.channel.send('2nd argument must be type: Role');
+
+					const newEmoji = args.shift();
+
+					const field = fieldMan.fields.find(field => field.id === role.id);
+					if (!field) return message.channel.send('That field is not being managed/does not exist.');
+					if (fieldMan.fields.find(f => f.emoji === newEmoji)) return message.channel.send('That emoji is already in use by another field!');
+					field.emoji = newEmoji;
+					editMessage(message, fieldMan);
+					message.channel.send('Reaction emoji updated.');
+
+					catDB.set(message.guild.id, fieldMan);
+					return;
+				}
+
+				// Create master role reaction message
+				if (args[0] === '-cm' || args[0] === '--create-message') {
+					args.shift();
+					if (fieldMan.fields.length === 0) return message.channel.send('There are no fields being managed yet, message would be pointless!');
+
+					const channelStr = args.shift();
+					const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
+					if (channel === undefined) return message.channel.send('Channel doesn\'t exist.');
+
+					// Delete previous reaction message if there is one.
+					if (fieldMan.reactor.message !== null)
+						deleteMessage(message.guild, fieldMan.reactor);
+
+					channel.send('Please wait while embed is generated...')
+						.then(newMessage => {
+							fieldMan.reactor = {
+								message: newMessage.id,
+								channel: channel.id,
+								text: args.length > 0 ? args.join(' ') : fieldMan.reactor.text,
+							};
+							editMessage(message, fieldMan);
+
+							catDB.set(message.guild.id, fieldMan);
+						})
+					.catch(console.error);
+					return;
+				}
 
 				// Get role request from message
 				const roleStr = args.shift();
@@ -67,8 +150,8 @@ module.exports = {
 				if (!role) return message.channel.send('1st argument must be type: Role');
 
 				// Category information for specified role
-				let catData = categories.find(c => c.id === role.id);
-				const place = categories.indexOf(catData);
+				let catData = fieldMan.fields.find(c => c.id === role.id);
+				const place = fieldMan.fields.indexOf(catData);
 				if (catData !== undefined) {
 					// Update catData (when users have data from older version of bot)
 					// From Version 3
@@ -77,6 +160,7 @@ module.exports = {
 							id: catData.id,
 							channel: catData.channel,
 							prefix: catData.prefix,
+							emoji: null,
 							reactor: {
 								message: undefined, // message ID
 								channel: undefined, // guild (text) channel ID
@@ -108,10 +192,11 @@ module.exports = {
 						if (!category) return message.channel.send('3rd argument must be type: Channel Category Name');
 
 						if (catData === undefined) {
-							categories.push({
+							fieldMan.fields.push({
 								id: role.id,
 								channel: category.id,
 								prefix: undefined,
+								emoji: null,
 								reactor: {
 									message: undefined,
 									channel: undefined,
@@ -124,7 +209,7 @@ module.exports = {
 						else {
 							catData.channel = category.id;
 							editMessage(message, catData); // Update embed message
-							categories[place] = catData;
+							fieldMan.fields[place] = catData;
 							message.channel.send(`Updated field category to ${category.toString()}.`);
 						}
 						break;
@@ -132,10 +217,11 @@ module.exports = {
 						const prefix = args.shift();
 
 						if (catData === undefined) {
-							categories.push({
+							fieldMan.fields.push({
 								id: role.id,
 								channel: undefined,
 								prefix: prefix,
+								emoji: null,
 								reactor: {
 									message: undefined,
 									channel: undefined,
@@ -148,14 +234,13 @@ module.exports = {
 						else {
 							catData.prefix = prefix;
 							editMessage(message, catData); // Update embed message
-							categories[place] = catData;
+							fieldMan.fields[place] = catData;
 							message.channel.send(`Updated field prefix to \`${prefix}\`.`);
 						}
 						break;
 					case '-cm': case '--create-message':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
 						if (catData.classes.length === 0) return message.channel.send('Field has no classes yet, message would be pointless!');
-						//if (catData.msg !== undefined) return message.channel.send(`Message already exists: ${catData.msg.url}\nPlease delete this message first.`);
 
 						const channelStr = args.shift();
 						const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
@@ -173,9 +258,9 @@ module.exports = {
 									text: args.length > 0 ? args.join(' ') : catData.reactor.text,
 								};
 								editMessage(message, catData);
-								categories[place] = catData;
+								fieldMan.fields[place] = catData;
 
-								catDB.set(message.guild.id, categories);
+								catDB.set(message.guild.id, fieldMan);
 							})
 						.catch(console.error);
 						break;
@@ -190,7 +275,7 @@ module.exports = {
 						if (catData.classes.find(f => f.emoji === newEmoji) !== undefined) return message.channel.send('That emoji is already in use for this field!');
 						theClass.emoji = newEmoji;
 						editMessage(message, catData);
-						categories[place] = catData;
+						fieldMan.fields[place] = catData;
 						message.channel.send('Reaction emoji updated.');
 						break;
 					case '-p': case '--print':
@@ -224,7 +309,7 @@ module.exports = {
 							emoji: emoji,
 						});
 						editMessage(message, catData); // Update embed message
-						categories[place] = catData;
+						fieldMan.fields[place] = catData;
 						break;
 					case '-c': case '--create':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
@@ -261,9 +346,9 @@ module.exports = {
 											emoji: null,
 										});
 										editMessage(message, catData); // Update embed message
-										categories[place] = catData;
+										fieldMan.fields[place] = catData;
 
-										catDB.set(message.guild.id, categories);
+										catDB.set(message.guild.id, fieldMan);
 									})
 								.catch(console.error);
 							})
@@ -279,7 +364,7 @@ module.exports = {
 						if (classIndex === -1) return message.channel.send(`${role.toString()} doesn't contain this class.`);
 
 						catData.classes.splice(classIndex, 1);
-						categories[place] = catData;
+						fieldMan.fields[place] = catData;
 						message.channel.send(`Removed \`${className}\` from list of classes.`);
 						break;
 					case '-d': case '--delete':
@@ -304,9 +389,9 @@ module.exports = {
 										.catch(console.error);*/
 										catData.classes.splice(classIndex, 1);
 										editMessage(message, catData); // Update embed message
-										categories[place] = catData;
+										fieldMan.fields[place] = catData;
 
-										catDB.set(message.guild.id, categories);
+										catDB.set(message.guild.id, fieldMan);
 									})
 								.catch(console.error);
 							})
@@ -319,29 +404,40 @@ module.exports = {
 						if (catData.reactor.message !== undefined)
 							deleteMessage(message.guild, catData.reactor);
 
-						categories.splice(place, 1);
+						fieldMan.fields.splice(place, 1);
 						message.channel.send(`${role.toString()} field no longer being managed.`);
 				}
-				catDB.set(message.guild.id, categories);
+				catDB.set(message.guild.id, fieldMan);
 			})
 		.catch(console.error);
 	},
 	help(prefix) {
 		return `
 ${prefix}catman (-l | --list)
+${prefix}catman (-se | --set-emoji) <field> <emoji>
+${prefix}catman (-cm | --create-message) <channel> (message)
 ${prefix}catman <role> (-sc | --set-category) <category_name>
 ${prefix}catman <role> (-sp | --set-prefix) <prefix>
-${prefix}catman <role> (-cm | --create-message) <channel>
+${prefix}catman <role> (-se | --set-emoji) <class> <emoji>
+${prefix}catman <role> (-cm | --create-message) <channel> (message)
 ${prefix}catman <role> --purge
 ${prefix}catman <role> (-a | -c | -r | -d) <class_number>
 ${prefix}catman <role> (-p | --print)
 
+Without <role>
 \t-l --list             Shows the fields currently stored in the manager (roles).
+\t-se --set-emoji       Sets <field> to use <emoji> with role-react embed.
+\t-cm --create-message  Creates a message in <channel> where users can click on
+\t                      reactions to receive specific roles. Optional (message) to
+\t                      display in the embed.
+With <role>
 \t-sc --set-category    Sets the Channel Category for this field to a category called
 \t                      category_name (if one exists).
 \t-sp --set-prefix      Sets the role/channel prefix for this field.
+\t-se --set-emoji       Sets <class> to use <emoji> with role-react embed.
 \t-cm --create-message  Creates a message in <channel> where users can click on
-\t                      reactions to receive specific roles.
+\t                      reactions to receive specific roles. Optional (message) to
+\t                      display in the embed.
 \t--purge               Deletes this field from the manager.
 \t-a --add              Adds a role beginning with the field prefix, a space, and
 \t                      class_number, and a channel beginning with field prefix, and
