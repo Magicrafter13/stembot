@@ -7,13 +7,13 @@ function editMessage(message, data) {
 	const type = data.fields !== undefined ? 'man' : 'data';
 
 	const things = type === 'man'
-		? data.fields.filter(f => f.emoji !== null).map(f => `${f.emoji} - ${f.prefix} Classes`).join('\n')
+		? data.fields.filter(f => f.emoji !== null).map(f => `${f.emoji} - ${message.guild.channels.cache.find(c => c.id === f.channel).name} Classes`).join('\n')
 		: data.classes.filter(c => c.emoji !== null).map(c => `${c.emoji} - ${data.prefix} ${c.name}`).join('\n');
 		
 	const embed = new Discord.MessageEmbed()
-	.setColor('#0099ff')
+	.setColor(type === 'man' ? '#cc8800' : '#0099ff')
 	.setTitle(type === 'man'
-		? 'Field Roles for this server!'
+		? 'Roles for this server. (Fields)'
 		: `Class Roles for ${message.guild.channels.cache.find(channel => channel.id === data.channel).name}`)
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
 	.setDescription(data.reactor.text)
