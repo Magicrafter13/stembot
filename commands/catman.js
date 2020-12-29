@@ -1,10 +1,9 @@
-const Discord = require('discord.js');
-
 function editMessage(message, data) {
-	if (data.reactor.message === undefined) return;
+	if (!data.reactor.message) console.error(`data.reactor.message undefined\n---\nmessage: ${message}\n---\ndata: ${data}`);
+	if (data.reactor.message === null) return;
 
 	// Check if 'data' is from 'fieldMan' or 'fieldData'
-	const type = data.fields !== undefined ? 'man' : 'data';
+	const type = data.fields ? 'man' : 'data';
 
 	const things = type === 'man'
 		? data.fields.filter(f => f.emoji !== null).map(f => `${f.emoji} - ${message.guild.channels.cache.find(c => c.id === f.channel).name} Classes`).join('\n')
@@ -14,7 +13,7 @@ function editMessage(message, data) {
 	.setColor(type === 'man' ? '#cc8800' : '#0099ff')
 	.setTitle(type === 'man'
 		? 'Roles for this server. (Fields)'
-		: `Class Roles for ${message.guild.channels.cache.find(channel => channel.id === data.channel).name}`)
+		: `Class Roles for ${message.guild.channels.cache.find(c => c.id === data.channel).name}`)
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
 	.setDescription(data.reactor.text)
 	//.setThumbnail('link')
@@ -23,7 +22,7 @@ function editMessage(message, data) {
 	.setTimestamp()
 	.setFooter('WIP Dev Build - Caution is Advised!');
 
-	const channel = message.guild.channels.cache.find(channel => channel.id === data.reactor.channel)
+	const channel = message.guild.channels.cache.find(c => c.id === data.reactor.channel)
 	channel.messages.fetch(data.reactor.message)
 		.then(msg => {
 			msg.edit('', embed)
@@ -41,7 +40,7 @@ function editMessage(message, data) {
 
 function deleteMessage(guild, reactor) {
 	return guild.channels.cache.find(c => c.id === reactor.channel).messages.fetch(reactor.message)
-	.then(message => message.delete({ reason: 'Old react-role message being deleted for new one.' }))
+	.then(m => m.delete({ reason: 'Old react-role message being deleted for new one.' }))
 	.catch(console.error);
 }
 
@@ -64,7 +63,7 @@ module.exports = {
 				let fieldMan;
 
 				// Guild has no data in database yet
-				if (val === undefined) {
+				if (!val) {
 					fieldMan = {
 						fields: [],
 						reactor: {
@@ -78,7 +77,7 @@ module.exports = {
 					fieldMan = val;
 
 					// Guild has version 3.0 data = upgrade to 4
-					if (val.fields === undefined) {
+					if (!val.fields) {
 						fieldMan = {
 							fields: val,
 							reactor: {
@@ -92,7 +91,7 @@ module.exports = {
 
 				// Check if no arguments were provided, or first argument is list command
 				if (!args.length || args[0] === '-l' || args[0] === '--list')
-					return message.channel.send(`The following roles have field information:\n${fieldMan.fields.map(arr => message.guild.roles.cache.find(role => role.id === arr.id).toString()).join('\n')}`)
+					return message.channel.send(`The following roles have field information:\n${fieldMan.fields.map(f => message.guild.roles.cache.find(r => r.id === f.id).toString()).join('\n')}`)
 
 				// Set field's emoji for react-role message.
 				if (args[0] === '-se' || args[0] === '--set-emoji') {
@@ -119,11 +118,11 @@ module.exports = {
 				// Create master role reaction message
 				if (args[0] === '-cm' || args[0] === '--create-message') {
 					args.shift();
-					if (fieldMan.fields.length === 0) return message.channel.send('There are no fields being managed yet, message would be pointless!');
+					if (!fieldMan.fields.length) return message.channel.send('There are no fields being managed yet, message would be pointless!');
 
 					const channelStr = args.shift();
 					const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
-					if (channel === undefined) return message.channel.send('Channel doesn\'t exist.');
+					if (!channel) return message.channel.send('Channel doesn\'t exist.');
 
 					// Delete previous reaction message if there is one.
 					if (fieldMan.reactor.message !== null)
@@ -134,7 +133,7 @@ module.exports = {
 							fieldMan.reactor = {
 								message: newMessage.id,
 								channel: channel.id,
-								text: args.length > 0 ? args.join(' ') : fieldMan.reactor.text,
+								text: args.length ? args.join(' ') : fieldMan.reactor.text,
 							};
 							editMessage(message, fieldMan);
 
@@ -165,30 +164,30 @@ module.exports = {
 				const role = message.guild.roles.cache.find(role => role.toString() === roleStr);
 				if (!role) return message.channel.send('1st argument must be type: Role');
 
-				// Category information for specified role
-				let catData = fieldMan.fields.find(c => c.id === role.id);
-				const place = fieldMan.fields.indexOf(catData);
-				if (catData !== undefined) {
-					// Update catData (when users have data from older version of bot)
+				// Field information for specified role
+				let fieldData = fieldMan.fields.find(field => field.id === role.id);
+				const place = fieldMan.fields.indexOf(fieldData);
+				if (fieldData) {
+					// Update fieldData (when users have data from older version of bot)
 					// From Version 3
-					if (catData.reactor === undefined) {
-						catData = {
-							id: catData.id,
-							channel: catData.channel,
-							prefix: catData.prefix,
+					if (fieldData.reactor === undefined) {
+						fieldData = {
+							id: fieldData.id,
+							channel: fieldData.channel,
+							prefix: fieldData.prefix,
 							emoji: null,
 							reactor: {
-								message: undefined, // message ID
-								channel: undefined, // guild (text) channel ID
-								text: undefined,    // message body of embed
+								message: null, // message ID
+								channel: null, // guild (text) channel ID
+								text: null,    // message body of embed
 							},
 							classes: (() => {
 								let f = [];
-								for (let i = 0; i < catData.classes.length; i++) {
+								for (let i = 0; i < fieldData.classes.length; i++) {
 									f.push({
-										name: catData.classes[i],
-										role: catData.roles[i],
-										channel: catData.channels[i],
+										name: fieldData.classes[i],
+										role: fieldData.roles[i],
+										channel: fieldData.channels[i],
 										emoji: null,
 									});
 								}
@@ -207,15 +206,15 @@ module.exports = {
 						const category = message.guild.channels.cache.find(channel => channel.name === catName);
 						if (!category) return message.channel.send('3rd argument must be type: Channel Category Name');
 
-						if (catData === undefined) {
+						if (!fieldData) {
 							fieldMan.fields.push({
 								id: role.id,
 								channel: category.id,
-								prefix: undefined,
+								prefix: null,
 								emoji: null,
 								reactor: {
-									message: undefined,
-									channel: undefined,
+									message: null,
+									channel: null,
 									text: 'React to this message for roles!',
 								},
 								classes: [],
@@ -223,24 +222,24 @@ module.exports = {
 							message.channel.send(`Created field info for ${role.toString()}, under category ${category.toString()}.`);
 						}
 						else {
-							catData.channel = category.id;
-							editMessage(message, catData); // Update embed message
-							fieldMan.fields[place] = catData;
+							fieldData.channel = category.id;
+							editMessage(message, fieldData); // Update embed message
+							fieldMan.fields[place] = fieldData;
 							message.channel.send(`Updated field category to ${category.toString()}.`);
 						}
 						break;
 					case '-sp': case '--set-prefix':
 						const prefix = args.shift();
 
-						if (catData === undefined) {
+						if (!fieldData) {
 							fieldMan.fields.push({
 								id: role.id,
-								channel: undefined,
+								channel: null,
 								prefix: prefix,
 								emoji: null,
 								reactor: {
-									message: undefined,
-									channel: undefined,
+									message: null,
+									channel: null,
 									text: 'React to this message for roles!',
 								},
 								classes: [],
@@ -248,33 +247,33 @@ module.exports = {
 							message.channel.send(`Created field info for ${role.toString()}, with prefix \`${prefix}\`.`);
 						}
 						else {
-							catData.prefix = prefix;
-							editMessage(message, catData); // Update embed message
-							fieldMan.fields[place] = catData;
+							fieldData.prefix = prefix;
+							editMessage(message, fieldData); // Update embed message
+							fieldMan.fields[place] = fieldData;
 							message.channel.send(`Updated field prefix to \`${prefix}\`.`);
 						}
 						break;
 					case '-cm': case '--create-message':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
-						if (catData.classes.length === 0) return message.channel.send('Field has no classes yet, message would be pointless!');
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData.classes.length) return message.channel.send('Field has no classes yet, message would be pointless!');
 
 						const channelStr = args.shift();
 						const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
-						if (channel === undefined) return message.channel.send('Channel doesn\'t exist.');
+						if (!channel) return message.channel.send('Channel doesn\'t exist.');
 
 						// Delete previous reaction message if there is one.
-						if (catData.reactor.message !== undefined)
-							deleteMessage(message.guild, catData.reactor);
+						if (fieldData.reactor.message)
+							deleteMessage(message.guild, fieldData.reactor);
 
 						channel.send('Please wait while embed is generated...')
 							.then(newMessage => {
-								catData.reactor = {
+								fieldData.reactor = {
 									message: newMessage.id,
 									channel: channel.id,
-									text: args.length > 0 ? args.join(' ') : catData.reactor.text,
+									text: args.length ? args.join(' ') : fieldData.reactor.text,
 								};
-								editMessage(message, catData);
-								fieldMan.fields[place] = catData;
+								editMessage(message, fieldData);
+								fieldMan.fields[place] = fieldData;
 
 								catDB.set(message.guild.id, fieldMan);
 							})
@@ -282,97 +281,97 @@ module.exports = {
 						break;
 					case '-em': case '--edit-message':
 						// Make sure there actually *is* a message to edit...
-						if (catData.reactor.message === null) return message.channel.send('There is no message! Create one with --create-message.');
+						if (fieldData.reactor.message === null) return message.channel.send('There is no message! Create one with --create-message.');
 
 						// Get new string from user's command, and update message.
-						catData.reactor.text = args.join(' ');
-						editMessage(message, catData);
-						fieldMan.fields[place] = catData;
+						fieldData.reactor.text = args.join(' ');
+						editMessage(message, fieldData);
+						fieldMan.fields[place] = fieldData;
 						message.channel.send('Message text updated.');
 						break;
 					case '-se': case '--set-emoji':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
 
 						className = args.shift().toLowerCase();
 						const newEmoji = args.shift();
 
-						const theClass = catData.classes.find(fClass => fClass.name === className);
-						if (theClass === undefined) return message.channel.send('That class is not being managed/does not exist.');
-						if (catData.classes.find(f => f.emoji === newEmoji) !== undefined) return message.channel.send('That emoji is already in use for this field!');
+						const theClass = fieldData.classes.find(fClass => fClass.name === className);
+						if (!theClass) return message.channel.send('That class is not being managed/does not exist.');
+						if (fieldData.classes.find(f => f.emoji === newEmoji)) return message.channel.send('That emoji is already in use for this field!');
 						theClass.emoji = newEmoji;
-						editMessage(message, catData);
-						fieldMan.fields[place] = catData;
+						editMessage(message, fieldData);
+						fieldMan.fields[place] = fieldData;
 						message.channel.send('Reaction emoji updated.');
 						break;
 					case '-p': case '--print':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
 
-						const classes = `Classes: [ ${catData.classes.map(c => c.name).join(', ')} ]`;
-						const roles = `Roles: [ ${catData.classes.map(c => c.role).map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
-						const channels = `Channels: [ ${catData.classes.map(c => c.channel).map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
-						emoji = `Emoji: [ ${catData.classes.map(c => c.emoji).join(', ')} ]`;
-						return message.channel.send(`${catData.channel !== undefined ? `category: ${message.guild.channels.cache.find(channel => channel.id === catData.channel).toString()}` : 'no category'}\n${catData.prefix !== undefined ? `prefix: ${catData.prefix}` : 'no prefix'}\nReact Role Message: ${catData.reactor.channel !== undefined ? message.guild.channels.cache.find(channel => channel.id === catData.reactor.channel).messages.cache.find(msg => msg.id === catData.reactor.message).url : 'no message'}\n${classes}\n${roles}\n${channels}\n${emoji}`);
+						const classes = `Classes: [ ${fieldData.classes.map(c => c.name).join(', ')} ]`;
+						const roles = `Roles: [ ${fieldData.classes.map(c => c.role).map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
+						const channels = `Channels: [ ${fieldData.classes.map(c => c.channel).map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
+						emoji = `Emoji: [ ${fieldData.classes.map(c => c.emoji).join(', ')} ]`;
+						return message.channel.send(`${fieldData.channel ? `category: ${message.guild.channels.cache.find(channel => channel.id === fieldData.channel).toString()}` : 'no category'}\n${fieldData.prefix ? `prefix: ${fieldData.prefix}` : 'no prefix'}\nReact Role Message: ${fieldData.reactor.channel && fieldData.reactor.message ? message.guild.channels.cache.find(c => c.id === fieldData.reactor.channel).messages.cache.find(m => m.id === fieldData.reactor.message).url : 'no message'}\n${classes}\n${roles}\n${channels}\n${emoji}`);
 					case '-a': case '--add':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
-						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
-						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData.channel) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (!fieldData.prefix) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						if (catData.classes.indexOf(className) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
-						const classRole = message.guild.roles.cache.find(role => role.name.startsWith(`${catData.prefix} ${className}`));
-						if (classRole === undefined) return message.channel.send(`No role found with name \`${catData.prefix} ${className}\`, you can create one by using \`-c\` instead of \`-a\`.`);
-						const classChannel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${catData.prefix.toLowerCase()}${className}`) && channel.type === 'text')
-						if (classChannel === undefined) return message.channel.send(`No channel found with name \`${catData.prefix.toLowerCase()}${className}, you can create one by using \`-c\` instead of \`-a\`.`);
+						if (fieldData.classes.indexOf(className) > -1) return message.channel.send(`${role.toString()} already contains this class.`);
+						const classRole = message.guild.roles.cache.find(role => role.name.startsWith(`${fieldData.prefix} ${className}`));
+						if (!classRole) return message.channel.send(`No role found with name \`${fieldData.prefix} ${className}\`, you can create one by using \`-c\` instead of \`-a\`.`);
+						const classChannel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${fieldData.prefix.toLowerCase()}${className}`) && channel.type === 'text')
+						if (!classChannel) return message.channel.send(`No channel found with name \`${fieldData.prefix.toLowerCase()}${className}, you can create one by using \`-c\` instead of \`-a\`.`);
 
-						emoji = args.length > 0 ? args.shift() : null;
+						emoji = args.length ? args.shift() : null;
 
 						message.channel.send(`Adding ${classRole.toString()} and ${classChannel.toString()} to ${role.toString()} field.${emoji !== null ? ` Emoji: ${emoji}.` : ''}`);
 
-						catData.classes.push({
+						fieldData.classes.push({
 							name: className,
 							role: classRole.id,
 							channel: classChannel.id,
 							emoji: emoji,
 						});
-						editMessage(message, catData); // Update embed message
-						fieldMan.fields[place] = catData;
+						editMessage(message, fieldData); // Update embed message
+						fieldMan.fields[place] = fieldData;
 						break;
 					case '-c': case '--create':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
-						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
-						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData.channel) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (!fieldData.prefix) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						if (catData.classes.find(c => c.name === className) !== undefined) return message.channel.send(`${role.toString()} already contains this class.`);
+						if (fieldData.classes.find(c => c.name === className)) return message.channel.send(`${role.toString()} already contains this class.`);
 
-						emoji = args.length > 0 ? args.shift() : null;
+						emoji = args.length ? args.shift() : null;
 
 						message.guild.roles.create({
 							data: {
-								name: `${catData.prefix} ${className}`,
-								position: catData.classes.length === 0 ? null : message.guild.roles.cache.find(role => role.id === catData.classes[catData.classes.length - 1].role).position,
+								name: `${fieldData.prefix} ${className}`,
+								position: !fieldData.classes.length ? null : message.guild.roles.cache.find(role => role.id === fieldData.classes[fieldData.classes.length - 1].role).position,
 							},
-							reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
+							reason: `${message.author.username} added class ${className} to ${fieldData.prefix}.`,
 						})
 							.then(newRole => {
-								message.guild.channels.create(`${catData.prefix}${className}`, {
+								message.guild.channels.create(`${fieldData.prefix}${className}`, {
 									type: 'text',
-									parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.id === catData.channel),
-									reason: `${message.author.username} added class ${className} to ${catData.prefix}.`,
+									parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.id === fieldData.channel),
+									reason: `${message.author.username} added class ${className} to ${fieldData.prefix}.`,
 								})
 									.then(newChannel => {
-										if (catData.classes.length)
-											newChannel.setPosition(message.guild.channels.cache.find(channel => channel.id === catData.classes[catData.classes.length - 1].channel).rawPosition);
+										if (fieldData.classes.length)
+											newChannel.setPosition(message.guild.channels.cache.find(channel => channel.id === fieldData.classes[fieldData.classes.length - 1].channel).rawPosition);
 										message.channel.send(`Adding ${newRole.toString()} and ${newChannel.toString()} to ${role.toString()} info.${emoji !== null ? ` Emoji: ${emoji}.` : ''}`);
 
-										catData.classes.push({
+										fieldData.classes.push({
 											name: className,
 											role: newRole.id,
 											channel: newChannel.id,
 											emoji: null,
 										});
-										editMessage(message, catData); // Update embed message
-										fieldMan.fields[place] = catData;
+										editMessage(message, fieldData); // Update embed message
+										fieldMan.fields[place] = fieldData;
 
 										catDB.set(message.guild.id, fieldMan);
 									})
@@ -381,41 +380,41 @@ module.exports = {
 						.catch(console.error);
 						return;
 					case '-r': case '--remove':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
-						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
-						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData.channel) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (!fieldData.prefix) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						classIndex = catData.classes.indexOf(catData.classes.find(c => c.name === className));
+						classIndex = fieldData.classes.indexOf(fieldData.classes.find(c => c.name === className));
 						if (classIndex === -1) return message.channel.send(`${role.toString()} doesn't contain this class.`);
 
-						catData.classes.splice(classIndex, 1);
-						fieldMan.fields[place] = catData;
+						fieldData.classes.splice(classIndex, 1);
+						fieldMan.fields[place] = fieldData;
 						message.channel.send(`Removed \`${className}\` from list of classes.`);
 						break;
 					case '-d': case '--delete':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
-						if (catData.channel === undefined) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
-						if (catData.prefix === undefined) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData.channel) return message.channel.send(`${role.toString()} has no channel category defined, please use \`-sc\`.`);
+						if (!fieldData.prefix) return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
 						className = args.shift().toLowerCase();
-						oldClass = catData.classes.find(c => c.name === className);
-						if (oldClass === undefined) return message.channel.send(`${role.toString()} doesn't contain this class.`);
-						classIndex = catData.classes.indexOf(oldClass);
+						oldClass = fieldData.classes.find(c => c.name === className);
+						if (!oldClass) return message.channel.send(`${role.toString()} doesn't contain this class.`);
+						classIndex = fieldData.classes.indexOf(oldClass);
 
 						message.guild.roles.fetch(oldClass.role)
 							.then(oldRole => {
-								oldRole.delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
+								oldRole.delete(`${message.author.username} deleted ${className} from ${fieldData.prefix}.`)
 									.then(() => {
 										message.channel.send('Role deleted.');
 										const oldChannelID = oldClass.channel;
 										message.channel.send(`You may now delete ${message.guild.channels.cache.find(channel => channel.id === oldChannelID).toString()}.`);
-										/*message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${catData.prefix}.`)
+										/*message.guild.channels.cache.find(channel => channel.id === oldChannelID).delete(`${message.author.username} deleted ${className} from ${fieldData.prefix}.`)
 										.then(message.channel.send(`Channel deleted.`))
 										.catch(console.error);*/
-										catData.classes.splice(classIndex, 1);
-										editMessage(message, catData); // Update embed message
-										fieldMan.fields[place] = catData;
+										fieldData.classes.splice(classIndex, 1);
+										editMessage(message, fieldData); // Update embed message
+										fieldMan.fields[place] = fieldData;
 
 										catDB.set(message.guild.id, fieldMan);
 									})
@@ -424,11 +423,11 @@ module.exports = {
 						.catch(console.error);
 						break;
 					case '--purge':
-						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
+						if (!fieldData) return message.channel.send(`No field information set for ${role.toString()}`);
 
 						// Cleanup react-role message if one exists.
-						if (catData.reactor.message !== undefined)
-							deleteMessage(message.guild, catData.reactor);
+						if (fieldData.reactor.message)
+							deleteMessage(message.guild, fieldData.reactor);
 
 						fieldMan.fields.splice(place, 1);
 						message.channel.send(`${role.toString()} field no longer being managed.`);
