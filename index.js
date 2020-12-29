@@ -128,7 +128,8 @@ client.on('message', message => {
 			const cmdQuery = client.commands.get(args.shift().toLowerCase());
 			if (!cmdQuery) return message.channel.send(`Command does not exist!`);
 
-			return message.channel.send(`${cmdQuery.name} - ${cmdQuery.description}\nUsage:\n\`\`\`${cmdQuery.help(prefix)}\`\`\`\nNeed more help? Visit the wiki page for this command: <https://gitlab.com/Magicrafter13/stembot/-/wikis/Commands/${cmdQuery.name}>`);
+			message.channel.send(`${cmdQuery.name} - ${cmdQuery.description}\nUsage:`);
+			return message.channel.send(`\`\`\`${cmdQuery.help(prefix)}\`\`\`\nNeed more help? Visit the wiki page for this command: <https://gitlab.com/Magicrafter13/stembot/-/wikis/Commands/${cmdQuery.name}>`);
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
