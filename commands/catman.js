@@ -144,6 +144,22 @@ module.exports = {
 					return;
 				}
 
+				// Edit text of reaction message
+				if (args[0] === '-em' || args[0] === '--edit-message') {
+					args.shift();
+
+					// Make sure there actually *is* a message to edit...
+					if (fieldMan.reactor.message === null) return message.channel.send('There is no message! Create one with --create-message.');
+
+					// Get new string from user's command, and update message.
+					fieldMan.reactor.text = args.join(' ');
+					editMessage(message, fieldMan);
+					message.channel.send('Message text updated.');
+
+					catDB.set(message.guild.id, fieldMan);
+					return;
+				}
+
 				// Get role request from message
 				const roleStr = args.shift();
 				const role = message.guild.roles.cache.find(role => role.toString() === roleStr);
@@ -263,6 +279,16 @@ module.exports = {
 								catDB.set(message.guild.id, fieldMan);
 							})
 						.catch(console.error);
+						break;
+					case '-em': case '--edit-message':
+						// Make sure there actually *is* a message to edit...
+						if (catData.reactor.message === null) return message.channel.send('There is no message! Create one with --create-message.');
+
+						// Get new string from user's command, and update message.
+						catData.reactor.text = args.join(' ');
+						editMessage(message, catData);
+						fieldMan.fields[place] = catData;
+						message.channel.send('Message text updated.');
 						break;
 					case '-se': case '--set-emoji':
 						if (catData === undefined) return message.channel.send(`No field information set for ${role.toString()}`);
