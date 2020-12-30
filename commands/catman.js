@@ -1,6 +1,83 @@
 const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
 
-function editMessage(message, data) {
+async function setEmoji(message, data, args) {
+	if (args.length < 2)
+		return message.channel.send('Syntax error, --set-emoji requires 2 arguments.');
+
+	// Determine data type
+	const type = data.fields ? 'manager' : 'field';
+
+	const thing = type === 'manager'
+		? message.guild.roles.resolve(args.shift().replace(/^<@&(\d+)>$/, `$1`)) // Get role's snowflake from user, then resolve to role.
+		: args.shift().tolowerCase(); // Get class from user
+
+	// Make sure we actually have an object to work with.
+	if (!thing)
+		return message.channel.send(`${type === 'manager' ? '2nd' : '3rd'} argument must be type: ${type === 'manager' ? 'Role' : 'class'}`);
+
+	// Get emoji from user
+	emoji = args.shift();
+	
+	const sub_thing = type === 'manager'
+		? data.fields.find(field => field.id === thing.id)
+		: data.classes.find(field_class => field_class.name === thing);
+
+	// Same as before
+	if (!sub_thing)
+		return message.channel.send(`That ${type === 'manager' ? 'field' : 'class'} is not being managed/does not exist.`);
+
+	// Check if emoji already in use.
+	if ((type === 'manager' ? data.fields : data.classes).find(thing => thing.emoji === emoji))
+		return message.channel.send(`That emoji is already in use by another ${type === 'manager' ? 'field' : 'class'}!`);
+
+	// Update field/class
+	thing.emoji = emoji;
+
+	return message.channel.send('Reaction emoji updated.');
+}
+
+async function createReactMessage(message, data, args) {
+	// Extract channel's unique snowflake from message
+	const snowflake = args.shift().replace(/^<#(\d+)>$/, `$1`);
+	const channel = message.guild.channels.resolve(snowflake);
+
+	// See if we were given a valid snowflake
+	if (!channel)
+		return message.channel.send('Channel doesn\'t exist.');
+
+	// Delete previous react-role message if one exists
+	if (data.reactor.message)
+		deleteMessage(message.guild, data.reactor); //.catch(message.channel.send('WARNING: There was an error deleting the previous message.'));
+
+	// Create message.
+	const embed_message = await channel.send('Please wait while embed is generated...');
+
+	// Save message/channel id in reactor
+	data.reactor = {
+		message: embed_message.id,
+		channel: channel.id,
+		text: args.length ? args.join(' ') : data.reactor.text,
+	};
+
+	// Generate embed
+	editReactMessage(message, data).catch(console.error);
+	
+	return;
+}
+
+async function editReactorText(message, data, args) {
+	// Get new string from user's command, and update message.
+	data.reactor.text = args.join(' ');
+
+	// Update embed message
+	editReactMessage(message, manager)
+	.then(message.channel.send('Message text updated.'))
+	.catch(console.error);
+
+	return;
+}
+
+async function editReactMessage(message, data) {
 	if (!data.reactor.message)
 		return;
 
@@ -8,7 +85,6 @@ function editMessage(message, data) {
 	const type = data.fields ? 'manager' : 'field';
 
 	const things = type === 'manager'
-		//? data.fields.filter(field => field.emoji).map(field => `${field.emoji} - ${message.guild.channels.cache.find(c => c.id === f.channel).name} Classes`).join('\n')
 		? data.fields.filter(field => field.emoji).map(field => `${field.emoji} - ${message.guild.channels.resolve(field.channel).name} Classes`).join('\n')
 		: data.classes.filter(field_class => field_class.emoji).map(field_class => `${field_class.emoji} - ${data.prefix} ${field_class.name}`).join('\n');
 		
@@ -16,7 +92,6 @@ function editMessage(message, data) {
 	.setColor(type === 'manager' ? '#cc8800' : '#0099ff')
 	.setTitle(type === 'manager'
 		? 'Roles for this server. (Fields)'
-		//: `Class Roles for ${message.guild.channels.cache.find(c => c.id === data.channel).name}`)
 		: `Class Roles for ${message.guild.channels.resolve(data.channel).name}`)
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
 	.setDescription(data.reactor.text)
@@ -26,7 +101,6 @@ function editMessage(message, data) {
 	.setTimestamp()
 	.setFooter('WIP Dev Build - Caution is Advised!');
 
-	//const channel = message.guild.channels.cache.find(c => c.id === data.reactor.channel)
 	const channel = message.guild.channels.resolve(data.reactor.channel)
 	channel.messages.fetch(data.reactor.message)
 		.then(msg => {
@@ -43,8 +117,8 @@ function editMessage(message, data) {
 	return;
 }
 
-function deleteMessage(guild, reactor) {
-	return guild.channels.cache.find(c => c.id === reactor.channel).messages.fetch(reactor.message)
+async function deleteMessage(guild, reactor) {
+	guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
 	.then(m => m.delete({ reason: 'Old react-role message being deleted for new one.' }))
 	.catch(console.error);
 }
@@ -111,83 +185,51 @@ module.exports = {
 						return message.channel.send(`The following roles have field information:\n${manager.fields.map(f => message.guild.roles.cache.find(r => r.id === f.id).toString()).join('\n')}`)
 					// Set field's emoji for react-role message.
 					case '-se': case '--set-emoji':
-						// Get role's snowflake from user, then resolve to role.
-						role_snowflake = args.shift().replace(/^<@&(\d+)>$/, `$1`);
-						//const role = message.guild.roles.cache.find(role => role.toString() === roleStr);
-						role = message.guild.roles.resolve(role_snowflake);
-						if (!role)
-							return message.channel.send('2nd argument must be type: Role');
+						setEmoji(message, manager, args)
+							.then(() => {
+								// Update embed message
+								editReactMessage(message, manager)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
+							})
+						.catch(console.error);
 
-						emoji = args.shift();
-						field = manager.fields.find(field => field.id === role.id);
-						if (!field)
-							return message.channel.send('That field is not being managed/does not exist.');
-						if (manager.fields.find(f => f.emoji === newEmoji))
-							return message.channel.send('That emoji is already in use by another field!');
-
-						field.emoji = emoji;
-						editMessage(message, manager);
-						fieldDB.set(message.guild.id, manager);
-
-						return message.channel.send('Reaction emoji updated.');
-					// Create field react-role message.
+						break;
 					case '-cm': case '--create-message':
 						if (!manager.fields.length)
 							return message.channel.send('There are no fields being managed yet, message would be pointless!');
 
-						const channel_snowflake = args.shift().replace(/^<#(\d+)>$/, `$1`);
-						//const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
-						channel = message.guild.channels.resolve(channel_snowflake);
-						if (!channel)
-							return message.channel.send('Channel doesn\'t exist.');
+						// Create embed message
+						createReactMessage(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch (console.error);
 
-						// Delete previous reaction message if there is one.
-						if (manager.reactor.message)
-							deleteMessage(message.guild, manager.reactor);
-
-						// Create message.
-						channel.send('Please wait while embed is generated...')
-							.then(newMessage => {
-								// Save message and channel in reactor.
-								manager.reactor = {
-									message: newMessage.id,
-									channel: channel.id,
-									text: args.length ? args.join(' ') : manager.reactor.text,
-								};
-								// Generate embed.
-								editMessage(message, manager);
-
-								// Update database.
-								fieldDB.set(message.guild.id, manager);
-							})
-						.catch(console.error);
-						return;
+						break;
 					// Edit text of react-role message.
 					case '-em': case '--edit-message':
 						// Make sure there actually *is* a message to edit...
 						if (!manager.reactor.message)
 							return message.channel.send('There is no message! Create one with --create-message.');
 
-						// Get new string from user's command, and update message.
-						manager.reactor.text = args.join(' ');
-						editMessage(message, manager);
-						fieldDB.set(message.guild.id, manager);
+						// Update reactor
+						editReactorText(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
 
-						message.channel.send('Message text updated.');
-						return;
+						break;
 					// No known command found, assume user specified a field role and wants to run one of those commands.
 					default:
-						// Get role request from message
-						role_snowflake = command.replace(/^<@&(\d+)>$/, `$1`);
-						//const role = message.guild.roles.cache.find(role => role.toString() === roleStr);
-						role = message.guild.roles.resolve(role_snowflake);
+						// Get role snowflake from user, and resolve to role
+						const snowflake = command.replace(/^<@&(\d+)>$/, `$1`);
+						role = message.guild.roles.resolve(snowflake);
+
+						// Check if snowflake was valid
 						if (!role)
-							return message.channel.send('1st argument must be type: Role');
+							return message.channel.send('1st argument must be a valid command, or a Role!');
 
 						// Field information for specified role.
 						// TODO figure out a way to make field a const
 						field = manager.fields.find(field => field.id === role.id);
-						const place = manager.fields.indexOf(field);
 						if (field) {
 							// Update field (when users have data from older version of bot)
 							// From Version 3
@@ -214,9 +256,17 @@ module.exports = {
 							}
 						}
 
-						// Make sure reactor is cached (if it exists)
-						if (field && field.reactor.message)
-							await message.guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message);
+						// If field has a non-null reactor, and the message doesn't resolve, fetch it from Discord (and cache it)
+						// This fixes the issue of the bot restarting, and losing its cache of messages (which will cause errors with some commands)
+						// TODO for some reason, if this encounters an error (like the message not existing) the whole command stops.
+						// The bot will still respond to commands, it doesn't crash, but it's like it returns here?
+						// Temporary fix: add a -dm --delete-message command to be used in this situation
+						if (field && field.reactor.message && !message.guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message)) {
+							message.channel.send('Caching react-role message...');
+							await message.guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message)
+						}
+
+						//console.log(`Message cached\n${message.guild.channels.resolve(field.reactor.channel).messages.resolve(field.reactor.message)}\nEND`);
 
 						// Some general variable names shared among the cases...
 						// TODO move as much of the code inside each case to a function as possible
@@ -228,55 +278,68 @@ module.exports = {
 								// Channel Categories cannot be tagged in a message, so we are forced to do a search by name.
 								const category_name = args.join(' ');
 								const category = message.guild.channels.cache.find(channel => channel.name === category_name);
+
+								// Make sure user provided a valid category name
 								if (!category)
 									return message.channel.send('3rd argument must be type: Channel Category Name');
 
-								if (!field) {
-									// Create new field object
-									const new_field = newField;
-									new_field.id = role.id;
-									new_field.channel = category.id;
-
-									// Add it to the manager
-									manager.fields.push(new_field);
-
-									message.channel.send(`Created field info for ${role.toString()}, under category ${category.toString()}.`);
-								}
-								else {
-									// Update existing field object
+								if (field) {
+									// Update existing field object's category
 									field.channel = category.id;
-									// Update manager
-									manager.fields[place] = field;
-									// Update embed message
-									editMessage(message, field);
 
-									message.channel.send(`Updated field category to ${category.toString()}.`);
+									// Update embed message
+									return editReactMessage(message, field)
+										.then(() => {
+											fieldDB.set(message.guild.id, manager); // Update database
+
+											message.channel.send(`Updated field category to ${category.toString()}.`);
+										}) 
+									.catch(console.error);
 								}
+
+								// Create new field object
+								field = newField;
+
+								// Set its role id
+								field.id = role.id;
+								// Set its category
+								field.channel = category.id;
+
+								// Add it to the manager
+								manager.fields.push(field);
+
+								message.channel.send(`Created field info for ${role.toString()}, under category ${category.toString()}.`);
 								break;
 							case '-sp': case '--set-prefix':
 								// Get new field prefix from user
 								const prefix = args.shift();
 
-								if (!field) {
-									// Create new field object
-									const new_field = newField;
-									new_field.id = role.id;
-									new_field.prefix = prefix;
-									// Add it to the manager
-									manager.fields.push(new_field);
-
-									message.channel.send(`Created field info for ${role.toString()}, with prefix \`${prefix}\`.`);
-								}
-								else {
-									// Update field object
+								if (field) {
+									// Update existing field object's prefix
 									field.prefix = prefix;
-									// Update manager
-									manager.fields[place] = field;
-									// Update embed message
-									editMessage(message, field);
 
-									message.channel.send(`Updated field prefix to \`${prefix}\`.`);
+									// Update embed message
+									return editReactMessage(message, field)
+										.then(() => {
+											fieldDB.set(message.guild.id, manager); // Update database
+
+											message.channel.send(`Updated field prefix to \`${prefix}\`.`);
+										})
+									.catch(console.error);
 								}
+
+								// Create new field object
+								field = newField;
+
+								// Set its role id
+								field.id = role.id;
+								// Set its prefix
+								field.prefix = prefix;
+
+								// Add it to the manager
+								manager.fields.push(field);
+
+								message.channel.send(`Created field info for ${role.toString()}, with prefix \`${prefix}\`.`);
 								break;
 							case '-cm': case '--create-message':
 								if (!field)
@@ -284,83 +347,43 @@ module.exports = {
 								if (!field.classes.length)
 									return message.channel.send('Field has no classes yet, message would be pointless!');
 
-								const channel_snowflake = args.shift().replace(/^<#(\d+)>$/, `$1`);
-								//const channel = message.guild.channels.cache.find(channel => channel.toString() === channelStr);
-								channel = message.guild.channels.resolve(channel_snowflake);
-								if (!channel)
-									return message.channel.send('Channel doesn\'t exist.');
-
-								// Delete previous reaction message if there is one.
-								if (field.reactor.message)
-									deleteMessage(message.guild, field.reactor);
-
-								channel.send('Please wait while embed is generated...')
-									.then(message => {
-										field.reactor = {
-											message: message.id,
-											channel: channel.id,
-											text: args.length ? args.join(' ') : field.reactor.text,
-										};
-										manager.fields[place] = field;
-										fieldDB.set(message.guild.id, manager);
-
-										editMessage(message, field);
-									})
+								// Create embed message
+								return createReactMessage(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 								.catch(console.error);
-								break;
 							case '-em': case '--edit-message':
 								// Make sure there actually *is* a message to edit...
-								if (field.reactor.message)
+								if (!field.reactor.message)
 									return message.channel.send('There is no message! Create one with --create-message.');
 
-								// Get new string from user's command, and update message.
-								field.reactor.text = args.join(' ');
-								manager.fields[place] = field;
-								editMessage(message, field);
+								editReactorText(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
 
-								message.channel.send('Message text updated.');
-								break;
+								return;
 							case '-se': case '--set-emoji':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
 
-								// Get class from user
-								class_name = args.shift().toLowerCase();
-
-								// Get emoji from user
-								emoji = args.shift();
-
-								// Get class (and make sure it exists)
-								const the_class = field.classes.find(field_class => field_class.name === class_name);
-								if (!the_class)
-									return message.channel.send('That class is not being managed/does not exist.');
-
-								// Check
-								if (field.classes.find(field_class => field_class.emoji === emoji))
-									return message.channel.send('That emoji is already in use for this field!');
-
-								// Update class
-								the_class.emoji = emoji;
-								// Update manager
-								manager.fields[place] = field;
-								// Update embed
-								editMessage(message, field);
-
-								message.channel.send('Reaction emoji updated.');
-								break;
+								return setEmoji(message, field, args)
+									.then(() => {
+										// Update embed message
+										editReactMessage(message, field);
+										// Update database
+										fieldDB.set(message.guild.id, manager);
+									})
+								.catch(console.error);
 							case '-p': case '--print':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
 
-								const classes = `Classes: [ ${field.classes.map(field_class => field_class.name).join(', ')} ]`;
-								//const roles = `Roles: [ ${field.classes.map(field_class => field_class.role).map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`;
-								const roles = `Roles: [ ${field.classes.map(field_class => field_class.role).map(id => message.guild.roles.resolve(id).toString()).join(', ')} ]`;
-								//const channels = `Channels: [ ${field.classes.map(field_class => field_class.channel).map(id => message.guild.channels.cache.find(channel => channel.id === id).toString()).join(', ')} ]`;
-								const channels = `Channels: [ ${field.classes.map(field_class => field_class.channel).map(id => message.guild.channels.resolve(id).toString()).join(', ')} ]`;
-								emoji = `Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`;
-								const reactor = `React Role Message: ${field.reactor.channel && field.reactor.message ? message.guild.channels.resolve(field.reactor.channel).messages.cache.find(m => m.id === field.reactor.message).url : 'no message'}`;
-								//return message.channel.send(`${field.channel ? `category: ${message.guild.channels.cache.find(channel => channel.id === fieldData.channel).toString()}` : 'no category'}\n${fieldData.prefix ? `prefix: ${fieldData.prefix}` : 'no prefix'}\nReact Role Message: ${fieldData.reactor.channel && fieldData.reactor.message ? message.guild.channels.cache.find(c => c.id === fieldData.reactor.channel).messages.cache.find(m => m.id === fieldData.reactor.message).url : 'no message'}\n${classes}\n${roles}\n${channels}\n${emoji}`);
-								return message.channel.send(`${field.channel ? `category: ${message.guild.channels.resolve(field.channel).toString()}` : 'no category'}\n${field.prefix ? `prefix: ${field.prefix}` : 'no prefix'}\n${reactor}\n${classes}\n${roles}\n${channels}\n${emoji}`);
+								return message.channel.send(`${field.channel ? `category: ${message.guild.channels.resolve(field.channel).toString()}` : 'no category'}
+${field.prefix ? `prefix: ${field.prefix}` : 'no prefix'}
+React Role Message: ${field.reactor.channel && field.reactor.message ? message.guild.channels.resolve(field.reactor.channel).messages.resolve(field.reactor.message).url : 'no message'}
+Classes: [ ${field.classes.map(field_class => field_class.name).join(', ')} ]
+Roles: [ ${field.classes.map(field_class => field_class.role).map(id => message.guild.roles.resolve(id).toString()).join(', ')} ]
+Channels: [ ${field.classes.map(field_class => field_class.channel).map(id => message.guild.channels.resolve(id).toString()).join(', ')} ]
+Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 							case '-a': case '--add':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
@@ -394,10 +417,8 @@ module.exports = {
 									channel: channel.id,
 									emoji: emoji,
 								});
-								// Update manager
-								manager.fields[place] = field;
 								// Update embed message
-								editMessage(message, field);
+								editReactMessage(message, field);
 
 								message.channel.send(`Adding ${class_role.toString()} and ${channel.toString()} to ${role.toString()} field.${emoji ? ` Emoji: ${emoji}.` : ''}`);
 								break;
@@ -421,7 +442,6 @@ module.exports = {
 								message.guild.roles.create({
 									data: {
 										name: `${field.prefix} ${class_name}`,
-										//position: field.classes.length ? message.guild.roles.cache.find(role => role.id === fieldData.classes[fieldData.classes.length - 1].role).position : null,
 										position: field.classes.length ? message.guild.roles.resolve(field.classes[field.classes.length - 1].role).position : null,
 									},
 									reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
@@ -429,13 +449,11 @@ module.exports = {
 									.then(class_role => {
 										message.guild.channels.create(`${field.prefix}${class_name}`, {
 											type: 'text',
-											//parent: message.guild.channels.cache.find(channel => channel.type === 'category' && channel.id === fieldData.channel),
 											parent: message.guild.channels.resolve(field.channel),
 											reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
 										})
 											.then(class_channel => {
 												if (field.classes.length)
-													//class_channel.setPosition(message.guild.channels.cache.find(channel => channel.id === fieldData.classes[fieldData.classes.length - 1].channel).rawPosition);
 													class_channel.setPosition(message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).rawPosition);
 												message.channel.send(`Adding ${class_role.toString()} and ${class_channel.toString()} to ${role.toString()} info.${emoji ? ` Emoji: ${emoji}.` : ''}`);
 
@@ -446,12 +464,10 @@ module.exports = {
 													channel: class_channel.id,
 													emoji: null,
 												});
-												// Update manager
-												manager.fields[place] = field;
 												// Update database
 												fieldDB.set(message.guild.id, manager);
 												// Update embed message
-												editMessage(message, field);
+												editReactMessage(message, field);
 											})
 										.catch(console.error);
 									})
@@ -474,11 +490,9 @@ module.exports = {
 
 								// Update field
 								field.classes.splice(field.classes.indexOf(old_class), 1);
-								// Update manager
-								manager.fields[place] = field;
 								// Update embed message
 								if (field.reactor.message)
-									editMessage(message, field);
+									editReactMessage(message, field);
 
 								message.channel.send(`Removed \`${class_name}\` from list of classes.`);
 								break;
@@ -499,12 +513,8 @@ module.exports = {
 
 								// Update field
 								field.classes.splice(field.classes.indexOf(old_class), 1);
-								// Update manager
-								manager.fields[place] = field;
-								// Update database
-								fieldDB.set(message.guild.id, manager);
 								// Update embed message
-								editMessage(message, field);
+								editReactMessage(message, field);
 
 								// Delete role
 								message.guild.roles.resolve(old_class.role).delete(`${message.author.username} deleted ${class_name} from ${field.prefix}.`)
@@ -522,15 +532,16 @@ module.exports = {
 
 								// Cleanup react-role message if one exists.
 								if (field.reactor.message)
-									deleteMessage(message.guild, field.reactor);
+									deleteMessage(message.guild, field.reactor); //.catch(message.channel.send('WARNING: There was an error deleting the previous message.'));
 
 								// Update manager
-								manager.fields.splice(place, 1);
+								mamager.fields.splice(manager.fields.indexOf(field), 1);
 
 								message.channel.send(`${role.toString()} field no longer being managed.`);
 								break;
 						}
 						fieldDB.set(message.guild.id, manager);
+						message.channel.send('you shouldn\'t see this message');
 				}
 			})
 		.catch(console.error);
