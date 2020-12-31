@@ -36,6 +36,133 @@ async function setEmoji(message, data, args) {
 	return message.channel.send('Reaction emoji updated.');
 }
 
+async function addClass(message, field, args) {
+	// Get class from user
+	class_name = args.shift().toLowerCase();
+
+	// Make sure class is valid
+	if (field.classes.indexOf(class_name) > -1)
+		return message.channel.send(`${role.toString()} already contains this class.`);
+
+	// Find matching role
+	const class_role = message.guild.roles.cache.find(role => role.name.startsWith(`${field.prefix} ${class_name}`));
+
+	// Make sure role exists
+	if (!class_role)
+		return message.channel.send(`No role found with name \`${field.prefix} ${class_name}\`, you can create one by using \`-c\` instead of \`-a\`.`);
+
+	// Find matching channel
+	channel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${field.prefix.toLowerCase()}${class_name}`) && channel.type === 'text')
+
+	// Make sure channel exists
+	if (!channel)
+		return message.channel.send(`No channel found with name \`${field.prefix.toLowerCase()}${class_name}, you can create one by using \`-c\` instead of \`-a\`.`);
+
+	// Get emoji from user, or null of none specified
+	emoji = args.length ? args.shift() : null;
+
+	// Add new class to field
+	field.classes.push({
+		name: class_name,
+		role: class_role.id,
+		channel: channel.id,
+		emoji: emoji,
+	});
+
+	// Update embed message
+	if (field.reactor.message && emoji)
+		editReactMessage(message, field);
+
+	return message.channel.send(`Adding ${class_role.toString()} and ${channel.toString()} to ${message.guild.roles.resolve(field.id).toString()} field.${emoji ? ` Emoji: ${emoji}.` : ''}`);
+}
+
+async function removeClass(message, field, args) {
+	// Get class from user, then from the field
+	class_name = args.shift().toLowerCase();
+	old_class = field.classes.find(field_class => field_class.name === class_name);
+
+	// Make sure class is valid
+	if (!old_class)
+		return message.channel.send(`${role.toString()} doesn't contain this class.`);
+
+	// Update field
+	field.classes.splice(field.classes.indexOf(old_class), 1);
+
+	// Update embed message
+	if (field.reactor.message)
+		editReactMessage(message, field);
+
+	return message.channel.send(`Removed \`${class_name}\` from list of classes.`);
+}
+
+async function createClass(message, field, args) {
+	// Get class from user
+	class_name = args.shift().toLowerCase();
+	if (field.classes.find(field_class => field_class.name === class_name))
+		return message.channel.send(`${role.toString()} already contains this class.`);
+
+	// Get emoji from user, null if none specified
+	emoji = args.length ? args.shift() : null;
+
+	// Create class role
+	const class_role = await message.guild.roles.create({
+		data: {
+			name: `${field.prefix} ${class_name}`,
+			position: field.classes.length ? message.guild.roles.resolve(field.classes[field.classes.length - 1].role).position : null,
+		},
+		reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
+	});
+
+	// Create class channel
+	const class_channel = await message.guild.channels.create(`${field.prefix}${class_name}`, {
+		type: 'text',
+		parent: message.guild.channels.resolve(field.channel),
+		reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
+	});
+
+	// Move channel
+	if (field.classes.length)
+		class_channel.setPosition(message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).rawPosition);
+
+	// Add class to field
+	field.classes.push({
+		name: class_name,
+		role: class_role.id,
+		channel: class_channel.id,
+		emoji: emoji,
+	});
+
+	// Update embed message
+	if (field.reactor.message && emoji)
+		editReactMessage(message, field);
+
+	// Keep user informed
+	return message.channel.send(`Adding ${class_role.toString()} and ${class_channel.toString()} to ${message.guild.roles.resolve(field.id).toString()} info.${emoji ? ` Emoji: ${emoji}.` : ''}`);
+}
+
+async function deleteClass(message, field, args) {
+	// Get class from user, then from field
+	class_name = args.shift().toLowerCase();
+	old_class = field.classes.find(field_class => field_class.name === class_name);
+
+	// Make sure class is valid
+	if (!old_class)
+		return message.channel.send(`${role.toString()} doesn't contain this class.`);
+
+	// Remove class from field
+	removeClass(message, field, [class_name]);
+
+	// Delete role
+	message.guild.roles.resolve(old_class.role).delete(`${message.author.username} deleted ${class_name} from ${field.prefix}.`)
+	.then(message.channel.send('Role deleted.'))
+	.catch(console.error);
+	/*message.guild.channels.fetch(old_class.channel).delete(`${message.author.username} deleted ${class_name} from ${fieldData.prefix}.`)
+	.then(message.channel.send('Channel deleted.'))
+	.catch(console.error);*/
+	// Delete channel (except not, because I'm still not sure I want the bot to have such power...)
+	return message.channel.send(`You may now delete ${message.guild.channels.resolve(old_class.channel).toString()}.`);
+}
+
 async function createReactMessage(message, data, args) {
 	// Extract channel's unique snowflake from message
 	const snowflake = args.shift().replace(/^<#(\d+)>$/, `$1`);
@@ -392,36 +519,9 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 								if (!field.prefix)
 									return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-								// Get class from user
-								class_name = args.shift().toLowerCase();
-								if (field.classes.indexOf(class_name) > -1)
-									return message.channel.send(`${role.toString()} already contains this class.`);
-
-								// Find matching role
-								const class_role = message.guild.roles.cache.find(role => role.name.startsWith(`${field.prefix} ${class_name}`));
-								if (!class_role)
-									return message.channel.send(`No role found with name \`${field.prefix} ${class_name}\`, you can create one by using \`-c\` instead of \`-a\`.`);
-
-								// Find matching channel
-								channel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${field.prefix.toLowerCase()}${class_name}`) && channel.type === 'text')
-								if (!channel)
-									return message.channel.send(`No channel found with name \`${field.prefix.toLowerCase()}${class_name}, you can create one by using \`-c\` instead of \`-a\`.`);
-
-								// Get emoji from user, or null of none specified
-								emoji = args.length ? args.shift() : null;
-
-								// Add new class to field
-								field.classes.push({
-									name: class_name,
-									role: class_role.id,
-									channel: channel.id,
-									emoji: emoji,
-								});
-								// Update embed message
-								editReactMessage(message, field);
-
-								message.channel.send(`Adding ${class_role.toString()} and ${channel.toString()} to ${role.toString()} field.${emoji ? ` Emoji: ${emoji}.` : ''}`);
-								break;
+								return addClass(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
 							case '-c': case '--create':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
@@ -430,49 +530,9 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 								if (!field.prefix)
 									return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-								// Get class from user
-								class_name = args.shift().toLowerCase();
-								if (field.classes.find(field_class => field_class.name === class_name))
-									return message.channel.send(`${role.toString()} already contains this class.`);
-
-								// Get emoji from user, null if none specified
-								emoji = args.length ? args.shift() : null;
-
-								// Create class role
-								message.guild.roles.create({
-									data: {
-										name: `${field.prefix} ${class_name}`,
-										position: field.classes.length ? message.guild.roles.resolve(field.classes[field.classes.length - 1].role).position : null,
-									},
-									reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
-								})
-									.then(class_role => {
-										message.guild.channels.create(`${field.prefix}${class_name}`, {
-											type: 'text',
-											parent: message.guild.channels.resolve(field.channel),
-											reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
-										})
-											.then(class_channel => {
-												if (field.classes.length)
-													class_channel.setPosition(message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).rawPosition);
-												message.channel.send(`Adding ${class_role.toString()} and ${class_channel.toString()} to ${role.toString()} info.${emoji ? ` Emoji: ${emoji}.` : ''}`);
-
-												// Add class to field
-												field.classes.push({
-													name: class_name,
-													role: class_role.id,
-													channel: class_channel.id,
-													emoji: emoji,
-												});
-												// Update database
-												fieldDB.set(message.guild.id, manager);
-												// Update embed message
-												editReactMessage(message, field);
-											})
-										.catch(console.error);
-									})
+								return createClass(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 								.catch(console.error);
-								return;
 							case '-r': case '--remove':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
@@ -481,21 +541,9 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 								if (!field.prefix)
 									return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-								// Get class from user
-								class_name = args.shift().toLowerCase();
-								// Get class from field
-								old_class = field.classes.find(field_class => field_class.name === class_name);
-								if (!old_class)
-									return message.channel.send(`${role.toString()} doesn't contain this class.`);
-
-								// Update field
-								field.classes.splice(field.classes.indexOf(old_class), 1);
-								// Update embed message
-								if (field.reactor.message)
-									editReactMessage(message, field);
-
-								message.channel.send(`Removed \`${class_name}\` from list of classes.`);
-								break;
+								return removeClass(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
 							case '-d': case '--delete':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
@@ -504,28 +552,9 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 								if (!field.prefix)
 									return message.channel.send(`${role.toString()} has no prefix defined, please use \`-sp\`.`);
 
-								// Get class from user
-								class_name = args.shift().toLowerCase();
-								// Get class from field
-								old_class = field.classes.find(field_class => field_class.name === class_name);
-								if (!old_class)
-									return message.channel.send(`${role.toString()} doesn't contain this class.`);
-
-								// Update field
-								field.classes.splice(field.classes.indexOf(old_class), 1);
-								// Update embed message
-								editReactMessage(message, field);
-
-								// Delete role
-								message.guild.roles.resolve(old_class.role).delete(`${message.author.username} deleted ${class_name} from ${field.prefix}.`)
-								.then(message.channel.send('Role deleted.'))
+								return deleteClass(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 								.catch(console.error);
-								/*message.guild.channels.fetch(old_class.channel).delete(`${message.author.username} deleted ${class_name} from ${fieldData.prefix}.`)
-								.then(message.channel.send('Channel deleted.'))
-								.catch(console.error);*/
-								// Delete channel (except not, because I'm still not sure I want the bot to have such power...)
-								message.channel.send(`You may now delete ${message.guild.channels.resolve(old_class.channel).toString()}.`);
-								break;
 							case '--purge':
 								if (!field)
 									return message.channel.send(`No field information set for ${role.toString()}`);
