@@ -9,7 +9,7 @@ async function setEmoji(message, data, args) {
 
 	const thing = type === 'manager'
 		? message.guild.roles.resolve(args.shift().replace(/^<@&(\d+)>$/, `$1`)) // Get role's snowflake from user, then resolve to role.
-		: args.shift().tolowerCase(); // Get class from user
+		: args.shift().toLowerCase(); // Get class from user
 
 	// Make sure we actually have an object to work with.
 	if (!thing)
@@ -462,7 +462,7 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 													name: class_name,
 													role: class_role.id,
 													channel: class_channel.id,
-													emoji: null,
+													emoji: emoji,
 												});
 												// Update database
 												fieldDB.set(message.guild.id, manager);
@@ -541,7 +541,6 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 								break;
 						}
 						fieldDB.set(message.guild.id, manager);
-						message.channel.send('you shouldn\'t see this message');
 				}
 			})
 		.catch(console.error);
