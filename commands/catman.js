@@ -197,7 +197,7 @@ async function editReactorText(message, data, args) {
 	data.reactor.text = args.join(' ');
 
 	// Update embed message
-	editReactMessage(message, manager)
+	editReactMessage(message, data)
 	.then(message.channel.send('Message text updated.'))
 	.catch(console.error);
 
@@ -233,7 +233,7 @@ async function editReactMessage(message, data) {
 		.then(msg => {
 			msg.edit('', embed)
 				.then(() => {
-					(type === 'man' ? data.fields : data.classes).forEach(t => {
+					(type === 'manager' ? data.fields : data.classes).forEach(t => {
 						if (t.emoji)
 							msg.react(t.emoji);
 					});
