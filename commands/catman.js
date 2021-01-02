@@ -566,7 +566,7 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 									deleteMessage(message.guild, field.reactor); //.catch(message.channel.send('WARNING: There was an error deleting the previous message.'));
 
 								// Update manager
-								mamager.fields.splice(manager.fields.indexOf(field), 1);
+								manager.fields.splice(manager.fields.indexOf(field), 1);
 
 								message.channel.send(`${role.toString()} field no longer being managed.`);
 								break;
