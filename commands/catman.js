@@ -31,7 +31,7 @@ async function setEmoji(message, data, args) {
 		return message.channel.send(`That emoji is already in use by another ${type === 'manager' ? 'field' : 'class'}!`);
 
 	// Update field/class
-	thing.emoji = emoji;
+	sub_thing.emoji = emoji;
 
 	return message.channel.send('Reaction emoji updated.');
 }
@@ -197,7 +197,7 @@ async function editReactorText(message, data, args) {
 	data.reactor.text = args.join(' ');
 
 	// Update embed message
-	editReactMessage(message, manager)
+	editReactMessage(message, data)
 	.then(message.channel.send('Message text updated.'))
 	.catch(console.error);
 
@@ -233,7 +233,7 @@ async function editReactMessage(message, data) {
 		.then(msg => {
 			msg.edit('', embed)
 				.then(() => {
-					(type === 'man' ? data.fields : data.classes).forEach(t => {
+					(type === 'manager' ? data.fields : data.classes).forEach(t => {
 						if (t.emoji)
 							msg.react(t.emoji);
 					});
@@ -566,7 +566,7 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 									deleteMessage(message.guild, field.reactor); //.catch(message.channel.send('WARNING: There was an error deleting the previous message.'));
 
 								// Update manager
-								mamager.fields.splice(manager.fields.indexOf(field), 1);
+								manager.fields.splice(manager.fields.indexOf(field), 1);
 
 								message.channel.send(`${role.toString()} field no longer being managed.`);
 								break;
