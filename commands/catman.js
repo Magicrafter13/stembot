@@ -226,7 +226,7 @@ async function editReactMessage(message, data) {
 	.addFields({ name: type === 'manager' ? 'Fields' : 'Classes', value: things === '' ? 'None set (use --set-emoji).' : things })
 	//.setImage('link')
 	.setTimestamp()
-	.setFooter('WIP Dev Build - Caution is Advised!');
+	.setFooter('Report bugs on our GitLab repository.');
 
 	const channel = message.guild.channels.resolve(data.reactor.channel)
 	channel.messages.fetch(data.reactor.message)
@@ -302,7 +302,7 @@ module.exports = {
 					}
 				}
 
-				let role, role_snowflake, emoji, field, channel;
+				let field;
 
 				const command = !args.length ? '--list' : args.shift();
 
@@ -348,7 +348,7 @@ module.exports = {
 					default:
 						// Get role snowflake from user, and resolve to role
 						const snowflake = command.replace(/^<@&(\d+)>$/, `$1`);
-						role = message.guild.roles.resolve(snowflake);
+						const role = message.guild.roles.resolve(snowflake);
 
 						// Check if snowflake was valid
 						if (!role)
@@ -385,19 +385,21 @@ module.exports = {
 
 						// If field has a non-null reactor, and the message doesn't resolve, fetch it from Discord (and cache it)
 						// This fixes the issue of the bot restarting, and losing its cache of messages (which will cause errors with some commands)
-						// TODO for some reason, if this encounters an error (like the message not existing) the whole command stops.
-						// The bot will still respond to commands, it doesn't crash, but it's like it returns here?
-						// Temporary fix: add a -dm --delete-message command to be used in this situation
+						/*
+						 / TODO for some reason, if this encounters an error (like the message not existing) the whole command stops.
+						 / The bot will still respond to commands, it doesn't crash, but it's like it returns here?
+						 / Temporary fix: add a -dm --delete-message command to be used in this situation
+						 /
+						 / Jan 1: But wait, that wouldn't change anything, since to run the --delete-message code, it would have to get
+						 / past this point, which as stated before is where the issue happens...
+						 / Ugh, just push it to release I don't even care right now
+						 */
 						if (field && field.reactor.message && !message.guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message)) {
 							message.channel.send('Caching react-role message...');
 							await message.guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message)
 						}
 
 						//console.log(`Message cached\n${message.guild.channels.resolve(field.reactor.channel).messages.resolve(field.reactor.message)}\nEND`);
-
-						// Some general variable names shared among the cases...
-						// TODO move as much of the code inside each case to a function as possible
-						let class_name, old_class;
 
 						const cmd = args.shift();
 						switch (cmd) {
