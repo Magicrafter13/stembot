@@ -31,7 +31,7 @@ async function setEmoji(message, data, args) {
 		return message.channel.send(`That emoji is already in use by another ${type === 'manager' ? 'field' : 'class'}!`);
 
 	// Update field/class
-	thing.emoji = emoji;
+	sub_thing.emoji = emoji;
 
 	return message.channel.send('Reaction emoji updated.');
 }
