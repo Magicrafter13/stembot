@@ -17,7 +17,7 @@ let settings = new Map();
 settings.set('botRoles', botRoles);
 settings.set('categories', categories);
 
-const client = new Discord.Client(); // register Discord client
+const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] }); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
 
@@ -39,6 +39,89 @@ client.once('ready', () => {
 	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
 });
 
+client.on('messageReactionAdd', async (reaction, user) => {
+	if (reaction.partial) {
+		try { await reaction.fetch() }
+		catch (error) { return console.error('Error occured while fetching message: ', error) }
+	}
+	// Check if message from bot
+	if (user.bot) return;
+
+	// Now check if message has field associated with it (reaction role message)
+	const guildFields = settings.get('categories');
+	guildFields.get(reaction.message.guild.id)
+		.then(manager => {
+			if (!manager)
+				return; // Guild has no managed fields
+
+			// Check if message was for fields or classes.
+			const type = reaction.message.id === manager.reactor.message ? 'field' : 'class';
+
+			const field = type === 'class' ? manager.fields.find(f => f.reactor.message === reaction.message.id) : null;
+			if (field === undefined)
+				console.log(`${user} added a reaction, and this caused 'field' to be undefined. Happened in ${reaction.message.channel.name}`);
+
+			const thing = type === 'field'
+				? manager.fields.find(f => f.emoji === reaction.emoji.toString())
+				: field.classes.find(c => c.emoji === reaction.emoji.toString());
+			if (!thing)
+				return; // Reacted with emoji not in list
+
+			// If this reaction message is for a class, then make sure the user has the proper field role as well.
+			if (type === 'class') {
+				const fieldRole = reaction.message.guild.roles.cache.find(role => role.id === field.id);
+				const member = reaction.message.guild.members.cache.find(member => member.user === user);
+
+				if (!member.roles.cache.has(fieldRole.id))
+					return;
+			}
+
+			reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
+					.then(role => member.roles.add(role, 'User reacted to role embed.').then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error)
+		})
+	.catch(console.error);
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+	if (reaction.partial) {
+		try { await reaction.fetch() }
+		catch (error) { return console.error('Error occured while fetching message: ', error) }
+	}
+	// Check if message from bot
+	if (user.bot) return;
+
+	// Now check if message has field associated with it (reaction role message)
+	const guildFields = settings.get('categories');
+	guildFields.get(reaction.message.guild.id)
+		.then(manager => {
+			if (!manager)
+				return; // Guild has no managed fields
+
+			// Check if message was for fields or classes.
+			const type = reaction.message.id === manager.reactor.message ? 'field' : 'class';
+
+			const thing = type === 'field'
+				? manager.fields.find(f => f.emoji === reaction.emoji.toString())
+				: manager.fields.find(f => f.reactor.message === reaction.message.id).classes.find(c => c.emoji === reaction.emoji.toString());
+			if (!thing)
+				return; // Reacted with emoji not in list
+
+			reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
+					.then(role => member.roles.remove(role, 'User reacted to role embed.').then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error)
+		})
+	.catch(console.error);
+});
+
 // Handle messages from users (requires channel read permission)
 client.on('message', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
@@ -52,7 +135,8 @@ client.on('message', message => {
 			const cmdQuery = client.commands.get(args.shift().toLowerCase());
 			if (!cmdQuery) return message.channel.send(`Command does not exist!`);
 
-			return message.channel.send(`${cmdQuery.name} - ${cmdQuery.description}\nUsage:\n\`\`\`${cmdQuery.help(prefix)}\`\`\`\nNeed more help? Visit the wiki page for this command: <https://gitlab.com/Magicrafter13/stembot/-/wikis/Commands/${cmdQuery.name}>`);
+			message.channel.send(`${cmdQuery.name} - ${cmdQuery.description}\nUsage:`);
+			return message.channel.send(`\`\`\`${cmdQuery.help(prefix)}\`\`\`\nNeed more help? Visit the wiki page for this command: <https://gitlab.com/Magicrafter13/stembot/-/wikis/Commands/${cmdQuery.name}>`);
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
