@@ -61,7 +61,7 @@ module.exports = {
 				if (categories === undefined)
 					return message.channel.send(`No field information exists, set fields with \`catman\`.`);
 
-				categories.forEach(catData => purgeRoles(message, roles, catData.id, catData.roles));
+				categories.fields.forEach(field => purgeRoles(message, roles, field.id, field.classes.map(the_class => the_class.role)));
 			})
 		.catch(console.error);
 	},
