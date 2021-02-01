@@ -8,6 +8,7 @@ const Keyv = require('keyv'); // Key-Value database
 const { prefix, token, dbUser, dbPass } = require('./config.json');
 
 const { version } = require('./package.json');
+const version_short = version.replace(/\.\d+$/, '');
 
 // Setup Database
 const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
@@ -162,7 +163,7 @@ client.on('message', message => {
 							}
 						],
 						footer: {
-							text: `Clark Stembot - Version ${version}`
+							text: `Clark Stembot - Version ${version_short}`
 						},
 						timestamp: Date.now(),
 						type: 'rich'
