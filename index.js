@@ -40,9 +40,9 @@ client.once('ready', () => {
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
-	client.guilds.forEach(guildID => {
+	client.guilds.cache.each(guildID => {
 		fieldDB.get(guildID)
-			.then(manager => {
+			.then(async function (manager) {
 				if (!manager)
 					return; // User has no field manager database setup
 
@@ -56,7 +56,7 @@ client.once('ready', () => {
 				}
 
 				// Cache all class react-role messages
-				manager.fields.forEach(field => {
+				manager.fields.forEach(async function (field) {
 					if (field.reactor.channel &&
 						field.reactor.message &&
 						!message.guild.channels.resolve(field.reactor.channel)
