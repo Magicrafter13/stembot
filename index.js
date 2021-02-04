@@ -79,6 +79,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	// Check if message from bot
 	if (user.bot) return;
 
+	// Ignore reactions to messages not sent by the bot.
+	if (reaction.message.author.id != client.user.id)
+		return;
+
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
 	guildFields.get(reaction.message.guild.id)
