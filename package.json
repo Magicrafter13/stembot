@@ -24,7 +24,7 @@
   "homepage": "https://gitlab.com/Magicrafter13/stembot#readme",
   "dependencies": {
     "@keyv/redis": "^2.1.2",
-    "discord.js": "^12.4.1",
+    "discord.js": "^12.5.1",
     "keyv": "^4.0.3"
   },
   "devDependencies": {}
