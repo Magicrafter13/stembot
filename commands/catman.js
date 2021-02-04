@@ -394,10 +394,10 @@ module.exports = {
 						 / past this point, which as stated before is where the issue happens...
 						 / Ugh, just push it to release I don't even care right now
 						 */
-						if (field && field.reactor.message && !message.guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message)) {
-							message.channel.send('Caching react-role message...');
-							await message.guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message)
-						}
+//						if (field && field.reactor.message && !message.guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message)) {
+//							message.channel.send('Caching react-role message...');
+//							await message.guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message)
+//						}
 
 						//console.log(`Message cached\n${message.guild.channels.resolve(field.reactor.channel).messages.resolve(field.reactor.message)}\nEND`);
 

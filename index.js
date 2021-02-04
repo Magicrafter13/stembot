@@ -37,6 +37,38 @@ const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will no
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
 	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
+
+	// Cache react-role messages, so they are ready for messageReaction events.
+	const fieldDB = settings.get('categories');
+	client.guilds.cache.each(guild => {
+		console.log(`Caching messages in ${guild}.`)
+		fieldDB.get(guild.id)
+			.then(async function (manager) {
+				if (!manager)
+					return; // User has no field manager database setup
+
+				// Cache field react-role message
+				if (manager.reactor.channel &&
+					manager.reactor.message &&
+					!guild.channels.resolve(manager.reactor.channel)
+						.messages.cache.has(manager.reactor.message)) {
+					await guild.channels.resolve(manager.reactor.channel)
+						.messages.fetch(manager.reactor.message);
+				}
+
+				// Cache all class react-role messages
+				manager.fields.forEach(async function (field) {
+					if (field.reactor.channel &&
+						field.reactor.message &&
+						!guild.channels.resolve(field.reactor.channel)
+							.messages.cache.has(field.reactor.message)) {
+						await guild.channels.resolve(field.reactor.channel)
+							.messages.fetch(field.reactor.message);
+					}
+				})
+			})
+		.catch(console.error);
+	});
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
@@ -46,6 +78,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	}
 	// Check if message from bot
 	if (user.bot) return;
+
+	// Ignore reactions to messages not sent by the bot.
+	if (reaction.message.author.id != client.user.id)
+		return;
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');

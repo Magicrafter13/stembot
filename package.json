@@ -1,6 +1,6 @@
 {
   "name": "stembot",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "Clark College Community STEM Discord Bot",
   "main": "index.js",
   "scripts": {
@@ -24,7 +24,7 @@
   "homepage": "https://gitlab.com/Magicrafter13/stembot#readme",
   "dependencies": {
     "@keyv/redis": "^2.1.2",
-    "discord.js": "^12.4.1",
+    "discord.js": "^12.5.1",
     "keyv": "^4.0.3"
   },
   "devDependencies": {}
