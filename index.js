@@ -124,13 +124,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 						// Remove reactions to class react-role message
 						reaction.message.guild.channels.resolve(thing.reactor.channel)
 						.messages.resolve(thing.reactor.message)
-							.reactions.cache.forEach(class_reaction => class_reaction.users.remove(member));
-						// Remove class roles
-						/*thing.classes.forEach(the_class => {
-							reaction.message.guild.roles.fetch(the_class.role)
-							.then(role => member.roles.remove(role, 'User got rid of field role, so this class role was removed.').then().catch(console.error))
-							.catch(console.error);
-						})*/
+							.reactions.cache.forEach(async function (class_reaction) { await class_reaction.users.remove(member); }); // Is this actually any different than before? Might be a waste of code...
 					}
 				})
 			.catch(console.error)
