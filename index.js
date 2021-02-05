@@ -119,6 +119,19 @@ client.on('messageReactionRemove', async (reaction, user) => {
 					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
 					.then(role => member.roles.remove(role, 'User reacted to role embed.').then().catch(console.error))
 					.catch(console.error);
+					// Remove class roles if field role removed
+					if (type === 'field') {
+						// Remove reactions to class react-role message
+						reaction.message.guild.channels.resolve(thing.reactor.channel)
+						.messages.resolve(thing.reactor.message)
+							.reactions.cache.forEach(class_reaction => class_reaction.users.remove(member));
+						// Remove class roles
+						/*thing.classes.forEach(the_class => {
+							reaction.message.guild.roles.fetch(the_class.role)
+							.then(role => member.roles.remove(role, 'User got rid of field role, so this class role was removed.').then().catch(console.error))
+							.catch(console.error);
+						})*/
+					}
 				})
 			.catch(console.error)
 		})
