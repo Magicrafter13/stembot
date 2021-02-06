@@ -124,7 +124,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 						// Remove reactions to class react-role message
 						reaction.message.guild.channels.resolve(thing.reactor.channel)
 						.messages.resolve(thing.reactor.message)
-							.reactions.cache.forEach(async function (class_reaction) { await class_reaction.users.remove(member); }); // Is this actually any different than before? Might be a waste of code...
+							.reactions.cache.forEach(class_reaction => class_reaction.users.remove(member)); // Is this actually any different than before? Might be a waste of code...
 					}
 				})
 			.catch(console.error)
