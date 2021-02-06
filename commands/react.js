@@ -290,13 +290,22 @@ module.exports = {
 
 						break;
 					case '-st': case '--set-text':
+						if (!reactor)
+							return message.channel.send(`No reactor with the name \`${name}\` exists. Create one with --new!`);
+
 						// Make sure there actually *is* a message to edit...
-						if (!manager.reactor.message)
+						if (!reactor.message)
 							return message.channel.send('There is no message! Create one with --create-message.');
 
-						// Update reactor
-						editReactorText(message, manager, args)
-						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						// Get new text
+						const new_text = args.join(' ');
+
+						// Update the reactor
+						reactor.text = new_text;
+
+						// Update react-role message
+						editReactMessage(message.guild, reactor)
+						.then(() => reactDB.set(message.guild.id, manager)) // Update database
 						.catch(console.error);
 
 						break;
