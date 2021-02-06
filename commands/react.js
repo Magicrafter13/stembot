@@ -1,41 +1,5 @@
 const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
 
-async function setEmoji_old(message, data, args) {
-	if (args.length < 2)
-		return message.channel.send('Syntax error, --set-emoji requires 2 arguments.');
-
-	// Determine data type
-	const type = data.fields ? 'manager' : 'field';
-
-	const thing = type === 'manager'
-		? message.guild.roles.resolve(args.shift().replace(/^<@&(\d+)>$/, `$1`)) // Get role's snowflake from user, then resolve to role.
-		: args.shift().toLowerCase(); // Get class from user
-
-	// Make sure we actually have an object to work with.
-	if (!thing)
-		return message.channel.send(`${type === 'manager' ? '2nd' : '3rd'} argument must be type: ${type === 'manager' ? 'Role' : 'class'}`);
-
-	// Get emoji from user
-	emoji = args.shift();
-	
-	const sub_thing = type === 'manager'
-		? data.fields.find(field => field.id === thing.id)
-		: data.classes.find(field_class => field_class.name === thing);
-
-	// Same as before
-	if (!sub_thing)
-		return message.channel.send(`That ${type === 'manager' ? 'field' : 'class'} is not being managed/does not exist.`);
-
-	// Check if emoji already in use.
-	if ((type === 'manager' ? data.fields : data.classes).find(thing => thing.emoji === emoji))
-		return message.channel.send(`That emoji is already in use by another ${type === 'manager' ? 'field' : 'class'}!`);
-
-	// Update field/class
-	sub_thing.emoji = emoji;
-
-	return message.channel.send('Reaction emoji updated.');
-}
-
 async function editReactorText(message, data, args) {
 	// Get new string from user's command, and update message.
 	data.reactor.text = args.join(' ');
@@ -69,12 +33,16 @@ async function addRole(message, reactor, args) {
 	const new_obj = { id: new_role.id, emoji: null };
 
 	// Set the emoji
-	await setEmoji(message, reactor.roles, new_obj, args);
+	await setEmoji(message, reactor, new_obj, args);
 
 	// Check if emoji was successfully added, or if it was already in use
 	if (new_obj.emoji) {
 		reactor.roles.push(new_obj);
 		message.channel.send(`${new_role} added to react-role message.`);
+
+		// Check if a react-role message exists, and update it
+		if (reactor.message && reactor.channel)
+			editReactMessage(message.guild, reactor);
 	}
 }
 
@@ -97,9 +65,43 @@ async function removeRole(message, reactor, args) {
 
 	// Delete the role
 	reactor.roles.splice(reactor.roles.indexOf(check_role), 1);
+
+	// Check if a react-role message exists, and update it
+	if (reactor.message && reactor.channel) {
+		// Remove old emoji
+		message.guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
+		.then(msg => msg.reactions.cache.find(reaction => reaction.emoji.toString() === check_role.emoji).remove())
+		.catch(console.error);
+		editReactMessage(message.guild, reactor);
+	}
+
 }
 
-async function setEmoji(message, roles, role, args) {
+async function changeEmoji(message, reactor, args) {
+	if (!args.length)
+		return message.channel.send('Missing argument, requires a role.');
+
+	// Extract role's unique snowflake from message
+	const snowflake = args.shift().replace(/^<@&(\d+)>$/, `$1`);
+	const role = message.guild.roles.resolve(snowflake);
+
+	// Make sure it's valid
+	if (!role)
+		return message.channel.send(`Could not resolve \`${snowflake}\` to a valid role!`);
+
+	// Get the reactor
+	const obj = reactor.roles.find(r_role => r_role.id === role.id);
+
+	// Set the emoji
+	setEmoji(message, reactor, obj, args)
+		.then(() => {
+			if (reactor.channel && reactor.message)
+				editReactMessage(message.guild, reactor);
+		})
+	.catch(console.error);
+}
+
+async function setEmoji(message, reactor, role, args) {
 	if (!args.length)
 		return message.channel.send('Missing argument, requires an emoji.');
 
@@ -107,10 +109,16 @@ async function setEmoji(message, roles, role, args) {
 	const emoji = args.shift();
 
 	// Check if another role already uses this emoji
-	const check_role = roles.find(role => role.emoji === emoji);
+	const check_role = reactor.roles.find(r_role => r_role.emoji === emoji);
 	if (check_role)
 		return message.channel.send(`${emoji} is already being used by another role!`);
 
+	// Update react-role message if one exists
+	if (reactor.message && reactor.channel) {
+		// Remove old emoji
+		const msg = await message.guild.channels.resolve(reactor.channel).messages.fetch(reactor.message);
+		msg.reactions.cache.find(reaction => reaction.emoji.toString() === role.emoji).remove();
+	}
 	// Update the emoji
 	role.emoji = emoji;
 }
@@ -264,7 +272,9 @@ module.exports = {
 						if (!reactor)
 							return message.channel.send(`No reactor with the name \`${name}\` exists. Create one with --new!`);
 
-						message.channel.send('not implemented yet');
+						changeEmoji(message, reactor, args)
+						.then(() => reactDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
 						break;
 					case '-cm': case '--create-message':
 						if (!reactor)
