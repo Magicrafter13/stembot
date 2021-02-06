@@ -236,17 +236,31 @@ module.exports = {
 					case '-l': case '--list':
 						return message.channel.send(`Here are the react-role messages currently in the database:\n${manager.reactors.map(reactor => `${reactor.name}: ${reactor.channel && reactor.message ? message.guild.channels.resolve(reactor.channel).messages.resolve(reactor.message).url : ''}`).join('\n')}`);
 					case '-n': case '--new':
-						if (reactor)
-							return message.channel.send('A react-role message with this name already exists!');
-
 						if (!name)
 							return message.channel.send('Missing argument, requires name.');
+
+						if (reactor)
+							return message.channel.send('A react-role message with this name already exists!');
 
 						const new_reactor = newReactor;
 						new_reactor.name = name;
 
 						manager.reactors.push(new_reactor);
 						reactDB.set(message.guild.id, manager);
+
+						return message.channel.send(`Created new react-role data under '${name}'.`);
+					case '-d': case '--delete':
+						if (!reactor)
+							return message.channel.send(`No reactor with the name \`${name}\` exists. Create one with --new!`);
+
+						// Remove from manager
+						manager.reactors.splice(manager.reactors.indexOf(reactor), 1);
+						message.channel.send('Deleted react-role data/message.');
+
+						// Delete react-role message if one exists
+						deleteReactMessage(message.guild, reactor)
+						.then(() => reactDB.set(message.guild.id, manager))
+						.catch(console.error);
 						break;
 					case '-ar': case '--add-role':
 						if (!reactor)
