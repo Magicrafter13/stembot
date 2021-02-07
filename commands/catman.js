@@ -250,6 +250,27 @@ async function deleteMessage(guild, reactor) {
 	.catch(console.error);
 }
 
+async function swapRoles(message, manager, args) {
+	if (args.length < 2)
+		return message.channel.send('Syntax error, --swap requires 2 arguments.');
+
+	const name1 = args.shift();
+	const name2 = args.shift();
+
+	const item1 = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name1) : manager.classes.find(the_class => the_class.name === name1);
+	const item2 = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name2) : manager.classes.find(the_class => the_class.name === name2);
+
+	if (!item1)
+		return message.channel.send(`${name1} is not a managed ${manager.fields ? 'field role' : 'class name'}!`);
+	if (!item2)
+		return message.channel.send(`${name2} is not a managed ${manager.fields ? 'field role' : 'class name'}!`);
+
+	const arr = manager.fields ? manager.fields : manager.classes;
+	const index1 = arr.indexOf(item1);
+	const index2 = arr.indexOf(item2);
+	[arr[index1], arr[index2]] = [arr[index2], arr[index1]];
+}
+
 const newReactor = {
 	message: null,
 	channel: null,
@@ -343,6 +364,15 @@ module.exports = {
 						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 						.catch(console.error);
 
+						break;
+					// Swap 2 field's position in list
+					case '-s': case '--swap':
+						if (!manager.fields.length)
+							return message.channel.send('There are no fields being managed yet, message would be pointless!');
+
+						swapRoles(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
 						break;
 					// No known command found, assume user specified a field role and wants to run one of those commands.
 					default:
@@ -570,6 +600,13 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 
 								message.channel.send(`${role.toString()} field no longer being managed.`);
 								break;
+							case '-s': case '--swap':
+								if (!field)
+									return message.channel.send(`No field information set for ${role.toString()}`);
+
+								return swapRoles(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager))
+								.catch(console.error);
 						}
 						fieldDB.set(message.guild.id, manager);
 				}
