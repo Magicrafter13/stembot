@@ -17,7 +17,7 @@ async function setEmoji(message, data, args) {
 
 	// Get emoji from user
 	emoji = args.shift();
-	
+
 	const sub_thing = type === 'manager'
 		? data.fields.find(field => field.id === thing.id)
 		: data.classes.find(field_class => field_class.name === thing);
@@ -188,7 +188,7 @@ async function createReactMessage(message, data, args) {
 
 	// Generate embed
 	editReactMessage(message, data).catch(console.error);
-	
+
 	return;
 }
 
@@ -214,13 +214,15 @@ async function editReactMessage(message, data) {
 	const things = type === 'manager'
 		? data.fields.filter(field => field.emoji).map(field => `${field.emoji} - ${message.guild.channels.resolve(field.channel).name} Classes`).join('\n')
 		: data.classes.filter(field_class => field_class.emoji).map(field_class => `${field_class.emoji} - ${data.prefix} ${field_class.name}`).join('\n');
-		
+
+	// The CLark College logo shall remain here until a new picture is found for the bot.
+	// TODO: this ^
 	const embed = new Discord.MessageEmbed()
 	.setColor(type === 'manager' ? '#cc8800' : '#0099ff')
 	.setTitle(type === 'manager'
 		? 'Roles for this server. (Fields)'
 		: `Class Roles for ${message.guild.channels.resolve(data.channel).name}`)
-	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
+	.setAuthor('STEM Bot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
 	.setDescription(data.reactor.text)
 	//.setThumbnail('link')
 	.addFields({ name: type === 'manager' ? 'Fields' : 'Classes', value: things === '' ? 'None set (use --set-emoji).' : things })
@@ -422,7 +424,7 @@ module.exports = {
 											fieldDB.set(message.guild.id, manager); // Update database
 
 											message.channel.send(`Updated field category to ${category.toString()}.`);
-										}) 
+										})
 									.catch(console.error);
 								}
 
