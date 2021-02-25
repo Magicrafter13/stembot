@@ -271,6 +271,38 @@ async function swapRoles(message, manager, args) {
 	[arr[index1], arr[index2]] = [arr[index2], arr[index1]];
 }
 
+async function moveTop(message, manager, args) {
+	if (args.length < 1)
+		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+
+	const name = args.shift();
+	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
+
+	if (!item)
+		return message.channel.send(`${name} is not a managed ${manager.fields ? 'field role' : 'class name'}!`);
+
+	const arr = manager.fields ? manager.fields : manager.classes;
+	const index = arr.indexOf(item);
+	arr.splice(index, 1);
+	arr.unshift(item);
+}
+
+async function moveBottom(message, manager, args) {
+	if (args.length < 1)
+		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+
+	const name = args.shift();
+	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
+
+	if (!item)
+		return message.channel.send(`${name} is not a managed ${manager.fields ? 'field role' : 'class name'}!`);
+
+	const arr = manager.fields ? manager.fields : manager.classes;
+	const index = arr.indexOf(item);
+	arr.splice(index, 1);
+	arr.push(item);
+}
+
 const newReactor = {
 	message: null,
 	channel: null,
@@ -368,9 +400,27 @@ module.exports = {
 					// Swap 2 field's position in list
 					case '-s': case '--swap':
 						if (!manager.fields.length)
-							return message.channel.send('There are no fields being managed yet, message would be pointless!');
+							return message.channel.send('There are no fields being managed yet. There isn\'t anything to swap?');
 
 						swapRoles(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
+						break;
+					// Move field to top of list
+					case '-mt': case '--move-top':
+						if (!manager.fields.length)
+							return message.channel.send('There are no fields being managed yet. There isn\'t anything to move?');
+
+						moveTop(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
+						break;
+					// Move field to bottom of list
+					case '-mb': case '--move-bottom':
+						if (!manager.fields.length)
+							return message.channel.send('There are no fields being managed yet. There isn\'t anything to move?');
+
+						moveBottom(message, manager, args)
 						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 						.catch(console.error);
 						break;
@@ -606,6 +656,20 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 
 								return swapRoles(message, field, args)
 								.then(() => fieldDB.set(message.guild.id, manager))
+								.catch(console.error);
+							case '-mt': case '--move-top':
+								if (!field)
+									return message.channel.send(`No field information set for ${role.toString()}`);
+
+								return moveTop(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
+							case '-mb': case '--move-bottom':
+								if (!field)
+									return message.channel.send(`No field information set for ${role.toString()}`);
+
+								return moveBottom(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 								.catch(console.error);
 						}
 						fieldDB.set(message.guild.id, manager);
