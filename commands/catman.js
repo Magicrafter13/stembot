@@ -269,6 +269,23 @@ async function swapRoles(message, manager, args) {
 	const index1 = arr.indexOf(item1);
 	const index2 = arr.indexOf(item2);
 	[arr[index1], arr[index2]] = [arr[index2], arr[index1]];
+
+	if (!manager.fields) {
+		const channel1 = message.guild.channels.resolve(item1.channel);
+		const channel2 = message.guild.channels.resolve(item2.channel);
+
+		const distance = Math.abs(index2 - index1);
+		const pos1 = channel1.position;
+		const pos2 = channel2.position;
+
+		channel1.setPosition(pos2 - pos1 > 0 ? distance - 1 : -distance, { relative: true, reason: `${message.author} swapped 2 classes.` })
+		.then(() => {
+			channel2.setPosition(pos2 - pos1 > 0 ? -distance : distance - 1, { relative: true, reason: `${message.author} swapped 2 classes.` })
+			.then(message.channel.send('Channels swapped.'))
+			.catch(console.error);
+		})
+		.catch(console.error);
+	}
 }
 
 async function moveTop(message, manager, args) {
@@ -285,6 +302,12 @@ async function moveTop(message, manager, args) {
 	const index = arr.indexOf(item);
 	arr.splice(index, 1);
 	arr.unshift(item);
+	if (!manager.fields) {
+		const channel = message.guild.channels.resolve(item.channel);
+		channel.setPosition(-index, { relative: true, reason: `${message.author} moved class to top.` })
+		.then(message.channel.send('Channel moved to top.'))
+		.catch(console.error);
+	}
 }
 
 async function moveBottom(message, manager, args) {
@@ -301,6 +324,12 @@ async function moveBottom(message, manager, args) {
 	const index = arr.indexOf(item);
 	arr.splice(index, 1);
 	arr.push(item);
+	if (!manager.fields) {
+		const channel = message.guild.channels.resolve(item.channel);
+		channel.setPosition(arr.length - index - 1, { relative: true, reason: `${message.author} moved class to bottom.` })
+		.then(message.channel.send('Channel moved to bottom.'))
+		.catch(console.error);
+	}
 }
 
 const newReactor = {
