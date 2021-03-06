@@ -7,6 +7,9 @@ const Keyv = require('keyv'); // Key-Value database
 //  - token:  Discord token for bot login
 const { prefix, token, dbUser, dbPass } = require('./config.json');
 
+const { version } = require('./package.json');
+const version_short = version.replace(/\.\d+$/, '');
+
 // Setup Database
 const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
 const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
@@ -176,7 +179,32 @@ client.on('message', message => {
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
-			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\`\nYou may also check the documentation on the Wiki: https://gitlab.com/Magicrafter13/stembot/-/wikis/home\nAnd request features or submit bugs here: <https://gitlab.com/Magicrafter13/stembot/-/issues>`);
+			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
+				{
+					embed: {
+						hexColor: '#800028',
+						author: {
+							name: 'Clark Stembot',
+							iconURL:  'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png',
+							url:  'https://gitlab.com/Magicrafter13/stembot'
+						},
+						fields: [
+							{
+								name: 'Need More Info?',
+								value: 'Check out the documentation on the [Wiki](https://gitlab.com/Magicrafter13/stembot/-/wikis/home)!'
+							},
+							{
+								name: 'Found a Bug? Have a New Feature Idea?',
+								value: 'Submit reports/ideas on [the issues page](https://gitlab.com/Magicrafter13/stembot/-/issues).'
+							}
+						],
+						footer: {
+							text: `Clark Stembot - Version ${version_short}`
+						},
+						timestamp: Date.now(),
+						type: 'rich'
+					}
+				});
 		}
 	}
 
