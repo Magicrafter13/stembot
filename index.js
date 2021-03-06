@@ -43,6 +43,7 @@ client.once('ready', () => {
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
+	const reactDB = settings.get('react');
 	client.guilds.cache.each(guild => {
 		console.log(`Caching messages in ${guild}.`)
 		fieldDB.get(guild.id)
@@ -67,6 +68,23 @@ client.once('ready', () => {
 							.messages.cache.has(field.reactor.message)) {
 						await guild.channels.resolve(field.reactor.channel)
 							.messages.fetch(field.reactor.message);
+					}
+				})
+			})
+		.catch(console.error);
+		reactDB.get(guild.id)
+			.then(async function (manager) {
+				if (!manager)
+					return; // User has no reactor database setup
+
+				// Cache all general react-role messages
+				manager.reactors.forEach(async function (reactor) {
+					if (reactor.channel &&
+						reactor.message &&
+						!guild.channels.resolve(reactor.channel)
+							.messages.cache.has(reactor.message)) {
+						await guild.channels.resolve(reactor.channel)
+							.messages.fetch(reactor.message);
 					}
 				})
 			})
