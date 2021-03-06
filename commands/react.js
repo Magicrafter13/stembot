@@ -150,9 +150,11 @@ async function createReactMessage(message, reactor, args) {
 }
 
 async function deleteReactMessage(guild, reactor) {
-	guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
-	.then(m => m.delete({ reason: 'Old react-role message being deleted for new one.' }))
-	.catch(console.error);
+	if (reactor.message) {
+		guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
+		.then(m => m.delete({ reason: 'Old react-role message being deleted for new one.' }))
+		.catch(console.error);
+	}
 }
 async function editReactMessage(guild, reactor) {
 	// TODO: remove this
