@@ -331,36 +331,24 @@ module.exports = {
 		return `
 Full documentation too long for Discord message, please see GitLab wiki for more!
 
-${prefix}catman (-l | --list)
-${prefix}catman [role] (-se | --set-emoji) <field/class> <emoji>
-${prefix}catman [role] (-cm | --create-message) <channel> (message)
-${prefix}catman <role> (-sc | --set-category) <category_name>
-${prefix}catman <role> (-sp | --set-prefix) <prefix>
-${prefix}catman <role> --purge
-${prefix}catman <role> (-a | -c | -r | -d) <class_number>
-${prefix}catman <role> (-p | --print)
+${prefix}react (-l | --list)
+${prefix}react (-n | --new) <name>
+${prefix}react (-d | --delete) <name>
+${prefix}react (-ar | --add-role) <name> <role> <emoji>
+${prefix}react (-rr | --remove-role) <name> <role>
+${prefix}react (-ce | --change-emoji) <name> <role> <emoji>
+${prefix}react (-cm | --create-message) <name> <channel>
+${prefix}react (-st | --set-text) <name> <message>
 
-Without <role>
-\t-l --list             Shows the fields currently stored in the manager (roles).
-\t-se --set-emoji       Sets <field> to use <emoji> with role-react embed.
-\t-cm --create-message  Creates a message in <channel> where users can click on
-\t                      reactions to receive specific roles. Optional (message) to
-\t                      display in the embed.
-With <role>
-\t-sc --set-category    Sets the Channel Category for this field to a category called
-\t                      category_name (if one exists).
-\t-sp --set-prefix      Sets the role/channel prefix for this field.
-\t-se --set-emoji       Sets <class> to use <emoji> with role-react embed.
-\t--purge               Deletes this field from the manager.
-\t-a --add              Adds a role beginning with the field prefix, a space, and
-\t                      class_number, and a channel beginning with field prefix, and
-\t                      class_number.
-\t-c --create           Creates a new role and channel, following the same convention
-\t                      above.
-\t-r --remove           Removes class_number from this field.
-\t-d --delete           Removes class_number from this field, then deletes the role.
-\t                      Channel must be deleted manually.
-\t-p --print            Displays the information the manager has on this field.
+-l -list             Lists all reactors.
+-n --new             Creates a new reactor identified by <name>.
+-d --delete          Delete's the <name> reactor.
+-ar --add-role       Adds <role> to <name>'s reactor.
+-rr --remove-role    Removes <role> from <name>'s reactor.
+-ce --change-emoji   Changes <name>'s <role> to use <emoji> as its reaction.
+-cm --create-message Creates a message in <channel> where users can click on
+                     reactions to receive specific roles.
+-st --set-text       Change the description text of a reactor message.
 `;
 	},
 }
