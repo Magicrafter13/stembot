@@ -30,6 +30,23 @@ async function setEmoji(message, data, args) {
 	if ((type === 'manager' ? data.fields : data.classes).find(thing => thing.emoji === emoji))
 		return message.channel.send(`That emoji is already in use by another ${type === 'manager' ? 'field' : 'class'}!`);
 
+	// Get the reaction data from the previous emoji if it exists
+	/*if (data.reactor.channel && data.reactor.message) {
+		const reactMessage = message.guild.channels.resolve(data.reactor.channel).messages.resolve(data.reactor.message);
+		const oldReaction = reactMessage.reactions.cache.find(r => r.emoji.name === sub_thing.emoji);
+		const oldUsers = oldReaction.users;
+		console.log(oldUsers);
+
+		reactMessage.react(emoji)
+			.then(newReaction => {
+				oldUsers.reaction = newReaction;
+				newReaction.users = oldUsers;
+				//reactMessage.reactions.resolve(oldReaction).remove();
+				console.log(newReaction.users);
+			})
+		.catch(console.error);
+	}*/
+
 	// Update field/class
 	sub_thing.emoji = emoji;
 
