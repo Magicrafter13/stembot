@@ -315,7 +315,7 @@ async function moveTop(message, manager, args) {
 
 async function moveBottom(message, manager, args) {
 	if (args.length < 1)
-		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+		return message.channel.send('Syntax error, --move-bottom requires 1 argument.');
 
 	const name = args.shift();
 	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
@@ -339,7 +339,7 @@ async function moveBottom(message, manager, args) {
 
 async function moveUp(message, manager, args) {
 	if (args.length < 1)
-		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+		return message.channel.send('Syntax error, --move-up requires 1 argument.');
 
 	const name = args.shift();
 	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
@@ -364,7 +364,7 @@ async function moveUp(message, manager, args) {
 
 async function moveDown(message, manager, args) {
 	if (args.length < 1)
-		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+		return message.channel.send('Syntax error, --move-down requires 1 argument.');
 
 	const name = args.shift();
 	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
