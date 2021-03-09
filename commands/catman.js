@@ -286,6 +286,7 @@ async function swapRoles(message, manager, args) {
 		})
 		.catch(console.error);
 	}
+	else return message.channel.send('Field\'s swapped.');
 }
 
 async function moveTop(message, manager, args) {
@@ -302,12 +303,14 @@ async function moveTop(message, manager, args) {
 	const index = arr.indexOf(item);
 	arr.splice(index, 1);
 	arr.unshift(item);
+
 	if (!manager.fields) {
 		const channel = message.guild.channels.resolve(item.channel);
 		channel.setPosition(-index, { relative: true, reason: `${message.author} moved class to top.` })
-		.then(message.channel.send('Channel moved to top.'))
+		.then(message.channel.send('Class moved to top.'))
 		.catch(console.error);
 	}
+	else return message.channel.send('Field moved to top.');
 }
 
 async function moveBottom(message, manager, args) {
@@ -324,12 +327,64 @@ async function moveBottom(message, manager, args) {
 	const index = arr.indexOf(item);
 	arr.splice(index, 1);
 	arr.push(item);
+
 	if (!manager.fields) {
 		const channel = message.guild.channels.resolve(item.channel);
 		channel.setPosition(arr.length - index - 1, { relative: true, reason: `${message.author} moved class to bottom.` })
-		.then(message.channel.send('Channel moved to bottom.'))
+		.then(message.channel.send('Class moved to bottom.'))
 		.catch(console.error);
 	}
+	else return message.channel.send('Field moved to bottom.');
+}
+
+async function moveUp(message, manager, args) {
+	if (args.length < 1)
+		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+
+	const name = args.shift();
+	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
+
+	if (!item)
+		return message.channel.send(`${name} is not a managed ${manager.fields ? 'field role' : 'class name'}!`);
+
+	const arr = manager.fields ? manager.fields : manager.classes;
+	const index = arr.indexOf(item);
+	if (index < 1)
+		return message.channel.send('That channel is already at the top!');
+	[arr[index], arr[index - 1]] = [arr[index - 1], arr[index]];
+
+	if (!manager.fields) {
+		const channel = message.guild.channels.resolve(item.channel);
+		channel.setPosition(-1, { relative: true, reason: `${message.author} moved class up.` })
+		.then(message.channel.send('Class moved up.'))
+		.catch(console.error);
+	}
+	else return message.channel.send('Field moved up.');
+}
+
+async function moveDown(message, manager, args) {
+	if (args.length < 1)
+		return message.channel.send('Syntax error, --move-top requires 1 argument.');
+
+	const name = args.shift();
+	const item = manager.fields ? manager.fields.find(field => `<@&${field.id}>` === name) : manager.classes.find(the_class => the_class.name === name);
+
+	if (!item)
+		return message.channel.send(`${name} is not a managed ${manager.fields ? 'field role' : 'class name'}!`);
+
+	const arr = manager.fields ? manager.fields : manager.classes;
+	const index = arr.indexOf(item);
+	if (index == arr.length - 1)
+		return message.channel.send('That channel is already at the bottom!');
+	[arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+
+	if (!manager.fields) {
+		const channel = message.guild.channels.resolve(item.channel);
+		channel.setPosition(1, { relative: true, reason: `${message.author} moved class down.` })
+		.then(message.channel.send('Class moved down.'))
+		.catch(console.error);
+	}
+	else return message.channel.send('Field moved down.');
 }
 
 const newReactor = {
@@ -450,6 +505,24 @@ module.exports = {
 							return message.channel.send('There are no fields being managed yet. There isn\'t anything to move?');
 
 						moveBottom(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
+						break;
+					// Move field up in list
+					case '-mu': case '--move-up':
+						if (!manager.fields.length)
+							return message.channel.send('There are no fields being managed yet. There isn\'t anything to move?');
+
+						moveUp(message, manager, args)
+						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+						.catch(console.error);
+						break;
+					// Move field down in list
+					case '-md': case '--move-down':
+						if (!manager.fields.length)
+							return message.channel.send('There are no fields being managed yet. There isn\'t anything to move?');
+
+						moveDown(message, manager, args)
 						.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 						.catch(console.error);
 						break;
@@ -698,6 +771,20 @@ Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
 									return message.channel.send(`No field information set for ${role.toString()}`);
 
 								return moveBottom(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
+							case '-mu': case '--move-up':
+								if (!field)
+									return message.channel.send(`No field information set for ${role.toString()}`);
+
+								return moveUp(message, field, args)
+								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
+								.catch(console.error);
+							case '-md': case '--move-down':
+								if (!field)
+									return message.channel.send(`No field information set for ${role.toString()}`);
+
+								return moveDown(message, field, args)
 								.then(() => fieldDB.set(message.guild.id, manager)) // Update database
 								.catch(console.error);
 						}
