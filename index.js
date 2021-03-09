@@ -13,12 +13,15 @@ const version_short = version.replace(/\.\d+$/, '');
 // Setup Database
 const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
 const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
+const react = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'react' });
 botRoles.on('error', err => console.log('Connection Error', err));
 categories.on('error', err => console.log('Connection Error', err));
+react.on('error', err => console.log('Connection Error', err));
 
 let settings = new Map();
 settings.set('botRoles', botRoles);
 settings.set('categories', categories);
+settings.set('react', react);
 
 const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] }); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
@@ -43,6 +46,7 @@ client.once('ready', () => {
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
+	const reactDB = settings.get('react');
 	client.guilds.cache.each(guild => {
 		console.log(`Caching messages in ${guild}.`)
 		fieldDB.get(guild.id)
@@ -71,6 +75,23 @@ client.once('ready', () => {
 				})
 			})
 		.catch(console.error);
+		reactDB.get(guild.id)
+			.then(async function (manager) {
+				if (!manager)
+					return; // User has no reactor database setup
+
+				// Cache all general react-role messages
+				manager.reactors.forEach(async function (reactor) {
+					if (reactor.channel &&
+						reactor.message &&
+						!guild.channels.resolve(reactor.channel)
+							.messages.cache.has(reactor.message)) {
+						await guild.channels.resolve(reactor.channel)
+							.messages.fetch(reactor.message);
+					}
+				})
+			})
+		.catch(console.error);
 	});
 });
 
@@ -85,6 +106,30 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	// Ignore reactions to messages not sent by the bot.
 	if (reaction.message.author.id != client.user.id)
 		return;
+
+	// Now check if message is a standard react-role message
+	const reactDB = settings.get('react');
+	const std_manager = await reactDB.get(reaction.message.guild.id);
+	if (std_manager) {
+		// Get this message's reactor data
+		const reactor = std_manager.reactors.find(reactor => reactor.message === reaction.message.id);
+
+		// Make sure this is a standard react-role message
+		if (reactor) {
+			const role = reactor.roles.find(role => role.emoji === reaction.emoji.toString());
+			if (!role)
+				return; // This emoji is not being used for any of the roles (probably added by a user)
+
+			// Return so we don't bother checking for a field/class react-role message reaction
+			return reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(role.id)
+					.then(role_obj => member.roles.add(role_obj, 'User reacted to role embed.').then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error);
+		}
+	}
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
@@ -133,6 +178,30 @@ client.on('messageReactionRemove', async (reaction, user) => {
 	}
 	// Check if message from bot
 	if (user.bot) return;
+
+	// Now check if message is a standard react-role message
+	const reactDB = settings.get('react');
+	const std_manager = await reactDB.get(reaction.message.guild.id);
+	if (std_manager) {
+		// Get this message's reactor data
+		const reactor = std_manager.reactors.find(reactor => reactor.message === reaction.message.id);
+
+		// Make sure this is a standard react-role message
+		if (reactor) {
+			const role = reactor.roles.find(role => role.emoji === reaction.emoji.toString());
+			if (!role)
+				return; // This emoji is not being used for any of the roles (probably added by a user)
+
+			// Return so we don't bother checking for a field/class react-role message reaction
+			return reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(role.id)
+					.then(role_obj => member.roles.remove(role_obj, 'User reacted to role embed.').then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error);
+		}
+	}
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
