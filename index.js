@@ -156,8 +156,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
 				const fieldRole = reaction.message.guild.roles.cache.find(role => role.id === field.id);
 				const member = reaction.message.guild.members.cache.find(member => member.user === user);
 
-				if (!member.roles.cache.has(fieldRole.id))
-					return;
+				if (!member.roles.cache.has(fieldRole.id)) {
+					reaction.users.remove(member.user);
+					return member.send(`Sorry, you need the ${fieldRole.name} role to get this role.`);
+				}
 			}
 
 			reaction.message.guild.members.fetch(user)
