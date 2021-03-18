@@ -135,11 +135,12 @@ async function createClass(message, field, args) {
 		type: 'text',
 		parent: message.guild.channels.resolve(field.channel),
 		reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
+		position: field.classes.length ? message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).position + 1 : null,
 	});
 
 	// Move channel
-	if (field.classes.length)
-		class_channel.setPosition(message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).rawPosition);
+	/*if (field.classes.length)
+		class_channel.setPosition(message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).rawPosition);*/
 
 	// Add class to field
 	field.classes.push({
