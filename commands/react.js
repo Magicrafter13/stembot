@@ -331,8 +331,6 @@ module.exports = {
 	},
 	help(prefix) {
 		return `
-Full documentation too long for Discord message, please see GitLab wiki for more!
-
 ${prefix}react (-l | --list)
 ${prefix}react (-n | --new) <name>
 ${prefix}react (-d | --delete) <name>
