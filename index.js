@@ -7,15 +7,21 @@ const Keyv = require('keyv'); // Key-Value database
 //  - token:  Discord token for bot login
 const { prefix, token, dbUser, dbPass } = require('./config.json');
 
+const { version } = require('./package.json');
+const version_short = version.replace(/\.\d+$/, '');
+
 // Setup Database
 const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
 const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
+const react = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'react' });
 botRoles.on('error', err => console.log('Connection Error', err));
 categories.on('error', err => console.log('Connection Error', err));
+react.on('error', err => console.log('Connection Error', err));
 
 let settings = new Map();
 settings.set('botRoles', botRoles);
 settings.set('categories', categories);
+settings.set('react', react);
 
 const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] }); // register Discord client
 client.commands = new Discord.Collection(); // Create commands property as a JS collection
@@ -40,6 +46,7 @@ client.once('ready', () => {
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
+	const reactDB = settings.get('react');
 	client.guilds.cache.each(guild => {
 		console.log(`Caching messages in ${guild}.`)
 		fieldDB.get(guild.id)
@@ -68,6 +75,23 @@ client.once('ready', () => {
 				})
 			})
 		.catch(console.error);
+		reactDB.get(guild.id)
+			.then(async function (manager) {
+				if (!manager)
+					return; // User has no reactor database setup
+
+				// Cache all general react-role messages
+				manager.reactors.forEach(async function (reactor) {
+					if (reactor.channel &&
+						reactor.message &&
+						!guild.channels.resolve(reactor.channel)
+							.messages.cache.has(reactor.message)) {
+						await guild.channels.resolve(reactor.channel)
+							.messages.fetch(reactor.message);
+					}
+				})
+			})
+		.catch(console.error);
 	});
 });
 
@@ -82,6 +106,30 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	// Ignore reactions to messages not sent by the bot.
 	if (reaction.message.author.id != client.user.id)
 		return;
+
+	// Now check if message is a standard react-role message
+	const reactDB = settings.get('react');
+	const std_manager = await reactDB.get(reaction.message.guild.id);
+	if (std_manager) {
+		// Get this message's reactor data
+		const reactor = std_manager.reactors.find(reactor => reactor.message === reaction.message.id);
+
+		// Make sure this is a standard react-role message
+		if (reactor) {
+			const role = reactor.roles.find(role => role.emoji === reaction.emoji.toString());
+			if (!role)
+				return; // This emoji is not being used for any of the roles (probably added by a user)
+
+			// Return so we don't bother checking for a field/class react-role message reaction
+			return reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(role.id)
+					.then(role_obj => member.roles.add(role_obj, 'User reacted to role embed.').then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error);
+		}
+	}
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
@@ -108,8 +156,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
 				const fieldRole = reaction.message.guild.roles.cache.find(role => role.id === field.id);
 				const member = reaction.message.guild.members.cache.find(member => member.user === user);
 
-				if (!member.roles.cache.has(fieldRole.id))
-					return;
+				if (!member.roles.cache.has(fieldRole.id)) {
+					reaction.users.remove(member.user);
+					return member.send(`Sorry, you need the ${fieldRole.name} role to get this role.`);
+				}
 			}
 
 			reaction.message.guild.members.fetch(user)
@@ -130,6 +180,30 @@ client.on('messageReactionRemove', async (reaction, user) => {
 	}
 	// Check if message from bot
 	if (user.bot) return;
+
+	// Now check if message is a standard react-role message
+	const reactDB = settings.get('react');
+	const std_manager = await reactDB.get(reaction.message.guild.id);
+	if (std_manager) {
+		// Get this message's reactor data
+		const reactor = std_manager.reactors.find(reactor => reactor.message === reaction.message.id);
+
+		// Make sure this is a standard react-role message
+		if (reactor) {
+			const role = reactor.roles.find(role => role.emoji === reaction.emoji.toString());
+			if (!role)
+				return; // This emoji is not being used for any of the roles (probably added by a user)
+
+			// Return so we don't bother checking for a field/class react-role message reaction
+			return reaction.message.guild.members.fetch(user)
+				.then(member => {
+					reaction.message.guild.roles.fetch(role.id)
+					.then(role_obj => member.roles.remove(role_obj, 'User reacted to role embed.').then().catch(console.error))
+					.catch(console.error);
+				})
+			.catch(console.error);
+		}
+	}
 
 	// Now check if message has field associated with it (reaction role message)
 	const guildFields = settings.get('categories');
@@ -152,6 +226,13 @@ client.on('messageReactionRemove', async (reaction, user) => {
 					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
 					.then(role => member.roles.remove(role, 'User reacted to role embed.').then().catch(console.error))
 					.catch(console.error);
+					// Remove class roles if field role removed
+					if (type === 'field') {
+						// Remove reactions to class react-role message
+						reaction.message.guild.channels.resolve(thing.reactor.channel)
+						.messages.resolve(thing.reactor.message)
+							.reactions.cache.forEach(class_reaction => class_reaction.users.remove(member)); // Is this actually any different than before? Might be a waste of code...
+					}
 				})
 			.catch(console.error)
 		})
@@ -176,7 +257,32 @@ client.on('message', message => {
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
-			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\`\nYou may also check the documentation on the Wiki: https://gitlab.com/Magicrafter13/stembot/-/wikis/home\nAnd request features or submit bugs here: <https://gitlab.com/Magicrafter13/stembot/-/issues>`);
+			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
+				{
+					embed: {
+						hexColor: '#800028',
+						author: {
+							name: 'Clark Stembot',
+							iconURL:  'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png',
+							url:  'https://gitlab.com/Magicrafter13/stembot'
+						},
+						fields: [
+							{
+								name: 'Need More Info?',
+								value: 'Check out the documentation on the [Wiki](https://gitlab.com/Magicrafter13/stembot/-/wikis/home)!'
+							},
+							{
+								name: 'Found a Bug? Have a New Feature Idea?',
+								value: 'Submit reports/ideas on [the issues page](https://gitlab.com/Magicrafter13/stembot/-/issues).'
+							}
+						],
+						footer: {
+							text: `Clark Stembot - Version ${version_short}`
+						},
+						timestamp: Date.now(),
+						type: 'rich'
+					}
+				});
 		}
 	}
 
