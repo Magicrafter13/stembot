@@ -306,7 +306,9 @@ async function swapRoles(message, manager, args) {
 		})
 		.catch(console.error);
 	}
-	else return message.channel.send('Field\'s swapped.');
+	else message.channel.send('Field\'s swapped.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveTop(message, manager, args) {
@@ -330,7 +332,9 @@ async function moveTop(message, manager, args) {
 		.then(message.channel.send('Class moved to top.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved to top.');
+	else message.channel.send('Field moved to top.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveBottom(message, manager, args) {
@@ -354,7 +358,9 @@ async function moveBottom(message, manager, args) {
 		.then(message.channel.send('Class moved to bottom.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved to bottom.');
+	else message.channel.send('Field moved to bottom.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveUp(message, manager, args) {
@@ -379,7 +385,9 @@ async function moveUp(message, manager, args) {
 		.then(message.channel.send('Class moved up.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved up.');
+	else message.channel.send('Field moved up.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveDown(message, manager, args) {
@@ -404,7 +412,9 @@ async function moveDown(message, manager, args) {
 		.then(message.channel.send('Class moved down.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved down.');
+	else message.channel.send('Field moved down.');
+
+	return editReactMessage(message, manager);
 }
 
 const newReactor = {
