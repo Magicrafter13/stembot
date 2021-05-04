@@ -121,6 +121,17 @@ async function createClass(message, field, args) {
 	// Get emoji from user, null if none specified
 	emoji = args.length ? args.shift() : null;
 
+	// Check if emoji is already in use
+	if (emoji) {
+		let alreadyInUse = false;
+		field.classes.forEach(c => {
+			if (c.emoji == emoji)
+				return (alreadyInUse = true);
+		});
+		if (alreadyInUse)
+			return message.channel.send('This field already has a class with that emoji!');
+	}
+
 	// Create class role
 	const class_role = await message.guild.roles.create({
 		data: {
@@ -306,7 +317,9 @@ async function swapRoles(message, manager, args) {
 		})
 		.catch(console.error);
 	}
-	else return message.channel.send('Field\'s swapped.');
+	else message.channel.send('Field\'s swapped.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveTop(message, manager, args) {
@@ -330,7 +343,9 @@ async function moveTop(message, manager, args) {
 		.then(message.channel.send('Class moved to top.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved to top.');
+	else message.channel.send('Field moved to top.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveBottom(message, manager, args) {
@@ -354,7 +369,9 @@ async function moveBottom(message, manager, args) {
 		.then(message.channel.send('Class moved to bottom.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved to bottom.');
+	else message.channel.send('Field moved to bottom.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveUp(message, manager, args) {
@@ -379,7 +396,9 @@ async function moveUp(message, manager, args) {
 		.then(message.channel.send('Class moved up.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved up.');
+	else message.channel.send('Field moved up.');
+
+	return editReactMessage(message, manager);
 }
 
 async function moveDown(message, manager, args) {
@@ -404,7 +423,9 @@ async function moveDown(message, manager, args) {
 		.then(message.channel.send('Class moved down.'))
 		.catch(console.error);
 	}
-	else return message.channel.send('Field moved down.');
+	else message.channel.send('Field moved down.');
+
+	return editReactMessage(message, manager);
 }
 
 const newReactor = {
