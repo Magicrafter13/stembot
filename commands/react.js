@@ -117,7 +117,12 @@ async function setEmoji(message, reactor, role, args) {
 	if (reactor.message && reactor.channel) {
 		// Remove old emoji
 		const msg = await message.guild.channels.resolve(reactor.channel).messages.fetch(reactor.message);
-		msg.reactions.cache.find(reaction => reaction.emoji.toString() === role.emoji).remove();
+		try {
+			msg.reactions.cache.find(reaction => reaction.emoji.toString() === role.emoji).remove();
+		}
+		catch (e) {
+			//message.channel.send('Uh...');
+		}
 	}
 	// Update the emoji
 	role.emoji = emoji;
