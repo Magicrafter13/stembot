@@ -121,6 +121,17 @@ async function createClass(message, field, args) {
 	// Get emoji from user, null if none specified
 	emoji = args.length ? args.shift() : null;
 
+	// Check if emoji is already in use
+	if (emoji) {
+		let alreadyInUse = false;
+		field.classes.forEach(c => {
+			if (c.emoji == emoji)
+				return (alreadyInUse = true);
+		});
+		if (alreadyInUse)
+			return message.channel.send('This field already has a class with that emoji!');
+	}
+
 	// Create class role
 	const class_role = await message.guild.roles.create({
 		data: {
