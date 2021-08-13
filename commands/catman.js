@@ -1,4 +1,4 @@
-const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { Permissions, MessageEmbed } = require('discord.js'); // Discord.js library - wrapper for Discord API
 
 async function setEmoji(message, data, args) {
 	if (args.length < 2)
@@ -141,7 +141,7 @@ async function createClass(message, field, args) {
 
 	// Create class channel
 	const class_channel = await message.guild.channels.create(`${field.prefix}${class_name}`, {
-		type: 'text',
+		type: 'GUILD_TEXT',
 		parent: message.guild.channels.resolve(field.channel),
 		reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
 		position: field.classes.length ? message.guild.channels.resolve(field.classes[field.classes.length - 1].channel).position + 1 : null,
@@ -244,7 +244,7 @@ async function editReactMessage(message, data) {
 
 	// The CLark College logo shall remain here until a new picture is found for the bot.
 	// TODO: this ^
-	const embed = new Discord.MessageEmbed()
+	const embed = new MessageEmbed()
 	.setColor(type === 'manager' ? '#cc8800' : '#0099ff')
 	.setTitle(type === 'manager'
 		? 'Roles for this server. (Fields)'
@@ -447,7 +447,7 @@ module.exports = {
 	execute(message, args, settings) {
 		// Check if user has required permissions.
 		const guildMember = message.guild.members.cache.get(message.author.id);
-		if (!guildMember.permissions.has('MANAGE_CHANNELS', { checkAdmin: true }) || !guildMember.permissions.has('MANAGE_ROLES', { checkAdmin: true }))
+		if (!guildMember.permissions.has(Permissions.FLAGS.MANAGE_CHANNELS, { checkAdmin: true }) || !guildMember.permissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES');
 
 		const fieldDB = settings.get('categories');

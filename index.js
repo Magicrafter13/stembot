@@ -54,7 +54,7 @@ const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will no
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
-	//client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
+	client.user.setPresence({ activities: [ { name: `${prefix}help`, type: 'LISTENING' } ], status: 'online' });
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
@@ -253,7 +253,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 // Handle messages from users (requires channel read permission)
-client.on('message', message => {
+client.on('messageCreate', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
 
 	const args = message.content.slice(prefix.length).trim().split(/ +/); // looks for arguments and assigns them
@@ -341,6 +341,7 @@ client.on('message', message => {
 	}
 
 	timestamps.set(message.author.id, now);
+	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
 	setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
 	try {

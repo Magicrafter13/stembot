@@ -1,4 +1,4 @@
-const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { Permissions, MessageEmbed } = require('discord.js'); // Discord.js library - wrapper for Discord API
 
 async function editReactorText(message, data, args) {
 	// Get new string from user's command, and update message.
@@ -144,7 +144,7 @@ async function createReactMessage(message, reactor, args) {
 	await deleteReactMessage(message.guild, reactor);
 
 	// Create message.
-	const embed_message = await channel.send({ content: '_ _', embed: { title: 'Generating embed...' } });
+	const embed_message = await channel.send({ content: '_ _', embeds: [ { title: 'Generating embed...' } ] });
 
 	// Save message/channel id in reactor
 	reactor.message = embed_message.id;
@@ -169,7 +169,7 @@ async function editReactMessage(guild, reactor) {
 	// Get a text friendly list of roles
 	const roles = reactor.roles.map(role => `${role.emoji} - ${guild.roles.resolve(role.id)}`).join('\n');
 
-	const embed = new Discord.MessageEmbed()
+	const embed = new MessageEmbed()
 	.setColor('#ee3f20')
 	.setTitle('Roles')
 	.setAuthor('Clark Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
@@ -211,7 +211,7 @@ module.exports = {
 	execute(message, args, settings) {
 		// Check if user has required permissions.
 		const guildMember = message.guild.members.cache.get(message.author.id);
-		if (!guildMember.permissions.has('MANAGE_ROLES', { checkAdmin: true }))
+		if (!guildMember.permissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
 
 		const reactDB = settings.get('react');

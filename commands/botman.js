@@ -1,3 +1,5 @@
+const { Permissions } = require('discord.js');
+
 module.exports = {
 	name: 'botman',
 	description: 'Manage Bot Roles.',
@@ -8,7 +10,7 @@ module.exports = {
 	execute(message, args, settings) {
 		// Check if user has required permissions.
 		const guildMember = message.guild.members.cache.get(message.author.id);
-		if (!guildMember.permissions.has('MANAGE_ROLES', { checkAdmin: true }))
+		if (!guildMember.permissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
 
 		const botRoleDB = settings.get('botRoles');
