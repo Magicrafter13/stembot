@@ -69,7 +69,7 @@ async function addClass(message, field, args) {
 		return message.channel.send(`No role found with name \`${field.prefix} ${class_name}\`, you can create one by using \`-c\` instead of \`-a\`.`);
 
 	// Find matching channel
-	channel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${field.prefix.toLowerCase()}${class_name}`) && channel.type === 'text')
+	channel = message.guild.channels.cache.find(channel => channel.name.startsWith(`${field.prefix.toLowerCase()}${class_name}`) && channel.isText());
 
 	// Make sure channel exists
 	if (!channel)
@@ -134,10 +134,8 @@ async function createClass(message, field, args) {
 
 	// Create class role
 	const class_role = await message.guild.roles.create({
-		data: {
-			name: `${field.prefix} ${class_name}`,
-			position: field.classes.length ? message.guild.roles.resolve(field.classes[field.classes.length - 1].role).position : null,
-		},
+		name: `${field.prefix} ${class_name}`,
+		position: field.classes.length ? message.guild.roles.resolve(field.classes[field.classes.length - 1].role).position : null,
 		reason: `${message.author.username} added class ${class_name} to ${field.prefix}.`,
 	});
 
@@ -260,16 +258,12 @@ async function editReactMessage(message, data) {
 	.setFooter('Report bugs on our GitLab repository.');
 
 	const channel = message.guild.channels.resolve(data.reactor.channel)
-	channel.messages.fetch(data.reactor.message)
-		.then(msg => {
-			msg.edit('', embed)
-				.then(() => {
-					(type === 'manager' ? data.fields : data.classes).forEach(t => {
-						if (t.emoji)
-							msg.react(t.emoji);
-					});
-				})
-			.catch(console.error);
+	channel.messages.edit(data.reactor.message, { embeds: [ embed ] })
+		.then(() => {
+			(type === 'manager' ? data.fields : data.classes).forEach(t => {
+				if (t.emoji)
+					channel.messages.react(data.reactor.message, t.emoji);
+			});
 		})
 	.catch(console.error);
 	return;
@@ -277,7 +271,7 @@ async function editReactMessage(message, data) {
 
 async function deleteMessage(guild, reactor) {
 	guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
-	.then(m => m.delete({ reason: 'Old react-role message being deleted for new one.' }))
+	.then(m => m.delete())
 	.catch(console.error);
 }
 
@@ -452,8 +446,8 @@ module.exports = {
 	argsMax: -1,
 	execute(message, args, settings) {
 		// Check if user has required permissions.
-		const guildMember = message.guild.member(message.author);
-		if (!guildMember.hasPermission('MANAGE_CHANNELS', { checkAdmin: true }) || !guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true }))
+		const guildMember = message.guild.members.cache.get(message.author.id);
+		if (!guildMember.permissions.has('MANAGE_CHANNELS', { checkAdmin: true }) || !guildMember.permissions.has('MANAGE_ROLES', { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES');
 
 		const fieldDB = settings.get('categories');

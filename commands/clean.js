@@ -26,7 +26,7 @@ module.exports = {
 	argsMax: 1,
 	execute(message, args, settings) {
 		// Check for authorization
-		if (!message.member.hasPermission('MANAGE_ROLES'))
+		if (!message.member.permissions.has('MANAGE_ROLES'))
 			return message.reply('You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES');
 
 		// Clean bot-only role from users

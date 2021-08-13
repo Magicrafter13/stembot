@@ -144,7 +144,7 @@ async function createReactMessage(message, reactor, args) {
 	await deleteReactMessage(message.guild, reactor);
 
 	// Create message.
-	const embed_message = await channel.send({ embed: { title: 'Generating embed...' } });
+	const embed_message = await channel.send({ content: '_ _', embed: { title: 'Generating embed...' } });
 
 	// Save message/channel id in reactor
 	reactor.message = embed_message.id;
@@ -157,7 +157,7 @@ async function createReactMessage(message, reactor, args) {
 async function deleteReactMessage(guild, reactor) {
 	if (reactor.message) {
 		guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
-		.then(m => m.delete({ reason: 'Old react-role message being deleted for new one.' }))
+		.then(m => m.delete())
 		.catch(console.error);
 	}
 }
@@ -181,16 +181,12 @@ async function editReactMessage(guild, reactor) {
 	.setFooter('Report bugs on our GitLab repository.');
 
 	const channel = guild.channels.resolve(reactor.channel)
-	channel.messages.fetch(reactor.message)
-		.then(message => {
-			message.edit(embed)
-				.then(() => {
-					reactor.roles.forEach(role => {
-						if (role.emoji)
-							message.react(role.emoji);
-					});
-				})
-			.catch(console.error);
+	channel.messages.edit(reactor.message, { embeds: [ embed ] })
+		.then(() => {
+			reactor.roles.forEach(role => {
+				if (role.emoji)
+					channel.messages.react(reactor.message, role.emoji);
+			});
 		})
 	.catch(console.error);
 	return;
@@ -214,8 +210,8 @@ module.exports = {
 	argsMax: -1,
 	execute(message, args, settings) {
 		// Check if user has required permissions.
-		const guildMember = message.guild.member(message.author);
-		if (!guildMember.hasPermission('MANAGE_ROLES', { checkAdmin: true }))
+		const guildMember = message.guild.members.cache.get(message.author.id);
+		if (!guildMember.permissions.has('MANAGE_ROLES', { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
 
 		const reactDB = settings.get('react');

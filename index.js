@@ -1,6 +1,9 @@
 const fs = require('fs'); // Node's native file system module
-const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { Intents, Client, Collection } = require('discord.js'); // Discord.js library - wrapper for Discord API
+//const Discord = require('discord.js');
 const Keyv = require('keyv'); // Key-Value database
+
+// TODO: create integration role for bot, like most other bots have (server owners can't delete it without kicking the bot?)
 
 // Bot config file
 //  - prefix: Command prefix for messages directed at bot
@@ -23,8 +26,17 @@ settings.set('botRoles', botRoles);
 settings.set('categories', categories);
 settings.set('react', react);
 
-const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] }); // register Discord client
-client.commands = new Discord.Collection(); // Create commands property as a JS collection
+// Register Intents
+const reqIntents = new Intents();
+reqIntents.add(Intents.FLAGS.GUILDS);
+reqIntents.add(Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS);
+//reqIntents.add('DIRECT_MESSAGES');
+//reqIntents.add('GUILD_MEMBERS', 'GUILD_EMOJIS');
+//reqIntents.add('GUILD_PRESENCES');
+
+// Register Client
+const client = new Client({ intents: reqIntents }); // register Discord client
+client.commands = new Collection(); // Create commands property as a JS collection
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
 
 // Load each .js command file
@@ -36,13 +48,13 @@ for (const file of commandFiles) {
 	client.commands.set(command.name, command);
 }
 
-const cooldowns = new Discord.Collection();
+const cooldowns = new Collection();
 const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will not be subject to the cooldown.
 
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
-	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
+	//client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
@@ -92,6 +104,7 @@ client.once('ready', () => {
 				})
 			})
 		.catch(console.error);
+		console.log("Done caching I guess");
 	});
 });
 
@@ -257,9 +270,10 @@ client.on('message', message => {
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
-			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
-				{
-					embed: {
+			return message.channel.send({
+				content: `These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
+				embeds: [
+					{
 						hexColor: '#800028',
 						author: {
 							name: 'Clark Stembot',
@@ -282,7 +296,8 @@ client.on('message', message => {
 						timestamp: Date.now(),
 						type: 'rich'
 					}
-				});
+				]
+			});
 		}
 	}
 
@@ -307,7 +322,7 @@ client.on('message', message => {
 		return message.channel.send(`Invalid number of arguments, see \`${prefix}help ${command.name}\`.`);
 
 	if (!cooldowns.has(command.name)) {
-		cooldowns.set(command.name, new Discord.Collection());
+		cooldowns.set(command.name, new Collection());
 	}
 
 	const now = Date.now();
