@@ -38,6 +38,7 @@ reqIntents.add(Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIO
 const client = new Client({ intents: reqIntents }); // register Discord client
 client.commands = new Collection(); // Create commands property as a JS collection
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
+client.settings = settings;
 
 // Load each .js command file
 for (const file of commandFiles) {

@@ -1,11 +1,3 @@
-module.exports = {
-	name: 'echo',
-	description: 'Copies you!',
-	guildOnly: false,
-	cooldown: 5,
-	argsMin: 1,
-	argsMax: -1,
-};
 const { SlashCommandBuilder } = require('@discordjs/builders');
 
 module.exports = {
@@ -21,6 +13,8 @@ module.exports = {
 	async execute(interaction) {
 		await interaction.reply(interaction.options.get("text", true).value);
 	},
+	argsMin: 1,
+	argsMax: -1,
 	old_execute(message, args) {
 		message.channel.send(args.join(' '));
 	},
