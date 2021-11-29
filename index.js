@@ -45,7 +45,7 @@ for (const file of commandFiles) {
 
 	// set a new item in the Collection
 	// with the key as the command name and the value as the exported module
-	client.commands.set(command.name, command);
+	client.commands.set(command.data.name, command);
 }
 
 const cooldowns = new Collection();
@@ -252,6 +252,51 @@ client.on('messageReactionRemove', async (reaction, user) => {
 	.catch(console.error);
 });
 
+// Handle slash commands
+client.on('interactionCreate', async interaction => {
+	if (!interaction.isCommand())
+		return;
+
+	const command = client.commands.get(interaction.commandName);
+
+	if (!command)
+		return;
+
+	if (command.guildOnly && interaction.channel.type === 'DM')
+		return await interaction.reply('This command cannot be used in a DM.');
+
+	/*if (!cooldowns.has(command.data.name)) {
+		cooldowns.set(command.data.name, new Collection());
+	}
+
+	const now = Date.now();
+	const timestamps = cooldowns.get(command.name);
+	const cooldownAmount = (command.cooldown || 0) * 1000;
+
+	if (timestamps.has(interaction.member.id)) {
+		const expirationTime = timestamps.get(interaction.member.id) + cooldownAmount;
+
+		if (interaction.channel.type !== 'DM' && !interaction.member.permissions.any(permWhitelist)) {
+			if (now < expirationTime) {
+				const timeLeft = (expirationTime - now) / 1000;
+				return await interaction.reply(`please wait ${timeLeft.toFixed(1)} more second(s) before reusing the ${command.data.name} command.`);
+			}
+		}
+	}
+
+	timestamps.set(interaction.member.id, now);
+	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
+	setTimeout(() => timestamps.delete(interaction.member.id), cooldownAmount);*/
+
+	try {
+		await command.execute(interaction);
+	}
+	catch (error) {
+		console.error(error);
+		await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+	}
+});
+
 // Handle messages from users (requires channel read permission)
 client.on('messageCreate', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
@@ -345,7 +390,7 @@ client.on('messageCreate', message => {
 	setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
 	try {
-		command.execute(message, args, settings); // attempts to execute command
+		command.old_execute(message, args, settings); // attempts to execute command
 	} catch (error) {
 		console.error(error);
 		message.reply('there was an error trying to execute that command!'); // error message for user
