@@ -30,7 +30,7 @@ module.exports = {
 	async execute(interaction) {
 		// Check if user has required permissions.
 		if (!interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
-			return await interaction.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
+			return await interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', ephemeral: true });
 
 		const botRoleDB = interaction.client.settings.get('botRoles');
 		let botRoles = await botRoleDB.get(interaction.guildId)
