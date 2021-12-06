@@ -37,7 +37,7 @@ module.exports = {
 			.then(botRoles => botRoles === undefined ? null : botRoles)
 			.catch(error => console.error);
 		if (botRoles === undefined)
-			return await interaction.reply("There was an error reading the database!");
+			return await interaction.reply({ content: "There was an error reading the database!", ephemeral: true });
 
 		// If no key/value exists for this guild, create one
 		if (botRoles === null)
@@ -52,20 +52,20 @@ module.exports = {
 				.then()
 					.catch(error => {
 						console.error(error);
-						interaction.editReply("An error occured while clearing the bot role list!");
+						interaction.editReply("An error occured while clearing the bot role list. Database not updated!");
 					});
 				return;
 			case 'add': {
 				const role = interaction.options.getRole("role", true);
 				if (interaction.guild.me.roles.highest.comparePositionTo(role) <= 0)
-					return await interaction.reply(`I cannot manage this role! I can only manage roles below ${interaction.guild.me.roles.highest.toString()}.`);
+					return await interaction.reply(`I cannot manage this role! I can only manage roles below ${interaction.guild.me.roles.highest}.`);
 				botRoles.push(role.id);
 				botRoleDB.set(interaction.guildId, botRoles);
-				return await interaction.reply(`Added ${role.toString()} to the bot role list.`);
+				return await interaction.reply(`Added ${role} to the bot role list.`);
 			}
 			case 'remove': {
 				if (!botRoles.length)
-					return await message.channel.send('Bot role list is empty!');
+					return await interaction.reply({ content: 'Bot role list is empty!', ephemeral: true });
 
 				const role = interaction.options.getRole("role", true);
 				botRoles.splice(botRoles.indexOf(role.id), 1);

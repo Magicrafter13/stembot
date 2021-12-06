@@ -72,8 +72,9 @@ client.once('ready', () => {
 					manager.reactor.message &&
 					!guild.channels.resolve(manager.reactor.channel)
 						.messages.cache.has(manager.reactor.message)) {
-					await guild.channels.resolve(manager.reactor.channel)
-						.messages.fetch(manager.reactor.message);
+					guild.channels.fetch(manager.reactor.channel)
+					.then(channel => channel.messages.fetch(manager.reactor.message))
+					.catch(console.error);
 				}
 
 				// Cache all class react-role messages
@@ -83,7 +84,7 @@ client.once('ready', () => {
 						!guild.channels.resolve(field.reactor.channel)
 							.messages.cache.has(field.reactor.message)) {
 						await guild.channels.resolve(field.reactor.channel)
-							.messages.fetch(field.reactor.message);
+							.messages.fetch(field.reactor.message).catch(console.error);
 					}
 				})
 			})

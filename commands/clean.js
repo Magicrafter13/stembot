@@ -78,7 +78,7 @@ module.exports = {
 					role.members.each(member => {
 						if (!member.user.bot) {
 							member.roles.remove(role, `${interaction.user.username} requested bot role clean, ${role.name} is in the bot role list.`);
-							interaction.followUp(`Removed ${role.toString()} from ${member.displayName}.`);
+							interaction.followUp(`Removed ${role} from ${member.displayName}.`);
 						}
 					});
 				});
@@ -99,7 +99,7 @@ module.exports = {
 		if (catDB === null)
 			return await interaction.editReply(`No field information exists, set fields with \`/catman\`.`);
 
-		categories.fields.forEach(field => purgeRoles(interaction, field.id, field.classes.map(the_class => the_class.role)));
+		categories.fields.forEach(field => purgeRoles(interaction, field.id, field.classes.map(class_data => class_data.role)));
 		return await interaction.editReply("Cleaned user roles.");
 	},
 	argsMin: 0,

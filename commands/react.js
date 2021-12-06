@@ -393,14 +393,14 @@ module.exports = {
 	async execute(interaction) {
 		// Check if user has required permissions.
 		if (!interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
-			return interaction.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
+			return await interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', ephemeral: true });
 
 		const reactDB = interaction.client.settings.get('react');
 		let manager = await reactDB.get(interaction.guildId)
 		.then(manager => manager ? manager : { reactors: [] })
 		.catch(console.error);
 		if (!manager)
-			return await interaction.reply("There was an error reading the database!");
+			return await interaction.reply({ content: "There was an error reading the database!", ephemeral: true });
 		if (!manager.reactors)
 			manager.reactors = [];
 
@@ -413,7 +413,7 @@ module.exports = {
 				return await interaction.reply(`Here are the react-role messages currently in the database:\n${manager.reactors.map(reactor => `${reactor.name}: ${reactor.channel && reactor.message ? interaction.guild.channels.resolve(reactor.channel).messages.resolve(reactor.message).url : ''}`).join('\n')}`)
 			case 'new':
 				if (reactor)
-					return await interaction.reply('A react-role message with this name already exists!');
+					return await interaction.reply({ content: 'A react-role message with this name already exists!', ephemeral: true });
 
 				const new_reactor = newReactor;
 				new_reactor.name = name;
@@ -424,11 +424,11 @@ module.exports = {
 				return await interaction.reply(`Created new react-role data under '${name}'.`);
 			case 'delete':
 				if (!reactor)
-					return await interaction.reply(`No reactor with the name \`${name}\` exists. Create one with \`/react new\`!`);
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
 
 				// Remove from manager
 				manager.reactors.splice(manager.reactors.indexOf(reactor), 1);
-				await interaction.reply('Deleted react-role data/message.');
+				await interaction.reply(`Deleted '${name}' react-role data/message.`);
 
 				// Delete react-role message if one exists
 				deleteReactMessage(interaction.guild, reactor)
@@ -440,7 +440,7 @@ module.exports = {
 				break;
 			case 'add-role':
 				if (!reactor)
-					return await interaction.reply(`No reactor with the name \`${name}\` exists. Create one with \`/react new\`!`);
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
 
 				// Try to add role to reactor.
 				addRole(interaction, reactor)
@@ -450,7 +450,7 @@ module.exports = {
 				break;
 			case 'remove-role':
 				if (!reactor)
-					return await interaction.reply(`No reactor with the name \`${name}\` exists. Create one with \`/react new\`!`);
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
 
 				// Try to remove role from reactor.
 				removeRole(interaction, reactor)
@@ -460,7 +460,7 @@ module.exports = {
 				break;
 			case 'change-emoji':
 				if (!reactor)
-					return await interaction.reply(`No reactor with the name \`${name}\` exists. Create one with \`/react new\`!`);
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
 
 				changeEmoji(interaction, reactor)
 				.then(() => reactDB.set(interaction.guildId, manager)) // Update database
@@ -468,10 +468,10 @@ module.exports = {
 				break;
 			case 'create-message':
 				if (!reactor)
-					return await interaction.reply(`No reactor with the name \`${name}\` exists. Create one with \`/react new name:${name}\`!`);
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
 
 				if (!reactor.roles.length)
-					return await interaction.reply(`This reactor is empty, add some roles to it first with \`/react add-role name:${name}\`!`);
+					return await interaction.reply(`This reactor is empty, add some roles to it first with:\n> /react add-role \`name:\` ${name}`);
 
 				// Update the reactor (if applicable)
 				const message = interaction.options.getString("message", false);
@@ -486,11 +486,11 @@ module.exports = {
 				break;
 			case 'set-text':
 				if (!reactor)
-					return await interaction.reply(`No reactor with the name \`${name}\` exists. Create one with \`/react new:${name}\`!`);
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
 
 				// Make sure there actually *is* a message to edit...
 				if (!reactor.message)
-					return await interaction.reply(`You haven't made an embed yet. Create one with \`/react create-message name:${name}\`!`)
+					return await interaction.reply(`You haven't made an embed yet. Create one with:\n> /react create-message \`name:\` ${name}`);
 
 				// Update the reactor
 				reactor.text = interaction.options.getString("message", true);
