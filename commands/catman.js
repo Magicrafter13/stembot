@@ -3,28 +3,46 @@ const { Permissions, MessageEmbed } = require('discord.js'); // Discord.js libra
 
 async function setEmoji(interaction, manager, data) {
 	// Determine data type
-	const type = data.fields ? 'manager' : 'field';
+	const type = manager.fields ? 'field' : 'class';
 
 	// Get emoji from user
 	const emoji = interaction.options.getString("emoji", true);
 
 	// Check if emoji already in use.
 	if ((type === 'field' ? manager.fields : manager.classes).find(thing => thing.emoji === emoji))
-		return interaction.reply({ content: `That emoji is already in use by another ${type === 'manager' ? 'field' : 'class'}!`, ephemeral: true });
+		return interaction.reply({ content: `That emoji is already in use by another ${type === 'field' ? 'field' : 'class'}!`, ephemeral: true });
 
-	// Get the reaction data from the previous emoji if it exists
-	if (manager.reactor.channel && manager.reactor.message) {
-		const reactMessage = interaction.guild.channels.resolve(manager.reactor.channel).messages.resolve(manager.reactor.message);
-
-		reactMessage.react(emoji)
-		.catch(console.error);
-		reactMessage.reactions.resolve(reactMessage.reactions.cache.find(r => r.emoji.name === data.emoji)).remove();
-	}
+	const old_emoji = data.emoji;
 
 	// Update field/class
 	data.emoji = emoji;
 
-	return await interaction.reply({ content: 'Reaction emoji updated.', ephemeral: true });
+	await interaction.reply({ content: 'Reaction emoji updated.', ephemeral: true });
+
+	// Get the reaction data from the previous emoji if it exists
+	if (manager.reactor.channel && manager.reactor.message) {
+		interaction.guild.channels.fetch(manager.reactor.channel)
+			.then(channel => {
+				channel.messages.fetch(manager.reactor.message)
+					.then(message => {
+						old_reaction = message.reactions.cache.find(reaction => reaction.emoji.name === old_emoji);
+						if (old_reaction)
+							old_reaction.remove();
+						/*message.react(emoji).catch(error => {
+							console.error(error);
+							interaction.followUp({ content: 'Could not add reaction, are you sure you gave a valid emoji?', ephemeral:true });
+						});*/
+					})
+					.catch(error => {
+						console.error(error);
+						interaction.followUp({ content: 'Failed to fetch embed message, make sure I have the proper permissions for the channel!', ephemeral:true });
+					});
+			})
+			.catch(error => {
+				console.error(error);
+				interaction.followUp({ content: 'Failed to fetch channel containing embed message, make sure I have the proper permissions for the category/server!', ephemeral:true });
+			});
+	}
 }
 
 async function old_setEmoji(message, data, args) {
@@ -312,9 +330,9 @@ async function deleteClass(interaction, field, field_role) {
 		return await interaction.reply({ content: `${field_role} doesn't contain this class.`, ephemeral: true });
 
 	// Remove class from field
-	removeClass(interaction, field, field_role);
+	await removeClass(interaction, field, field_role);
 
-	await interaction.reply(`${class_name} removed from ${field.prefix}.`);
+	//await interaction.followUp(`${class_name} removed from ${field.prefix}.`);
 
 	// Delete role
 	interaction.guild.roles.resolve(old_class.role).delete(`${interaction.user.username} deleted ${class_name} from ${field.prefix}.`)
@@ -362,14 +380,14 @@ async function createReactMessage(interaction, data) {
 	await interaction.reply({ content: 'Generating embed...', ephemeral: true });
 
 	// Create message.
-	channel.send('Please wait while embed is generated...')
+	await channel.send('Please wait while embed is generated...')
 		.then(message => {
 			console.log("new message with id " + message.id);
 			// Save message/channel id in reactor
 			data.reactor = {
 				message: message.id,
 				channel: channel.id,
-				text: interaction.options.getString("message", false) ? interaction.option.getString("message", false) : data.reactor.text,
+				text: interaction.options.getString("message", false) ? interaction.options.getString("message", false) : data.reactor.text,
 			};
 
 			// Generate embed
@@ -414,7 +432,7 @@ async function editReactorText(interaction, manager) {
 	manager.reactor.text = interaction.options.getString("message", true);
 
 	// Update embed message
-	editReactMessage(message, manager)
+	editReactMessage(interaction, manager)
 	.then(interaction.reply('Message text updated.'))
 	.catch(console.error);
 
@@ -460,7 +478,7 @@ async function editReactMessage(interaction, manager) {
 	.setAuthor('STEM Bot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
 	.setDescription(manager.reactor.text)
 	//.setThumbnail('link')
-	.addFields({ name: type === 'manager' ? 'Fields' : 'Classes', value: things === '' ? 'None set (use --set-emoji).' : things })
+	.addFields({ name: type === 'manager' ? 'Fields' : 'Classes', value: things === '' ? 'None set (use set-emoji).' : things })
 	//.setImage('link')
 	.setTimestamp()
 	.setFooter('Report bugs on our GitLab repository.');
@@ -470,7 +488,11 @@ async function editReactMessage(interaction, manager) {
 		.then(() => {
 			(type === 'manager' ? manager.fields : manager.classes).forEach(t => {
 				if (t.emoji)
-					channel.messages.react(manager.reactor.message, t.emoji);
+					channel.messages.react(manager.reactor.message, t.emoji)
+						.catch(error => {
+							console.log(error);
+							interaction.followUp({ content: `Could not react with ${t.emoji}, is this a valid emoji?`, ephemeral:true });
+						});
 			});
 		})
 	.catch(console.error);
@@ -1088,8 +1110,15 @@ module.exports = {
 
 		switch (interaction.options.getSubcommand()) {
 			// List fields currently in manager.
-			case 'list':
+			case 'list': {
+				let message = `The following roles have field information:\n`;
+				manager.fields.map(f => f.id).forEach(snowflake => {
+					const role = interaction.guild.roles.resolve(snowflake);
+					message += `${(role ? role.toString() : 'Could not resolve role!')}\n`
+				});
+				return await interaction.reply(message);
 				return await interaction.reply(`The following roles have field information:\n${manager.fields.map(f => interaction.guild.roles.cache.find(r => r.id === f.id).toString()).join('\n')}`);
+			}
 			// Set field's emoji for react-role message.
 			case 'set-emoji':
 				/*if (class_role)
@@ -1120,10 +1149,10 @@ module.exports = {
 				if (field_role && !field)
 					return await interaction.reply({ content: `No field information set for ${role.toString()}`, ephemeral: true });
 				if (!(field ? field.classes : manager.fields).length)
-					return await interaction.reply({ content: `The ${field ? "field" : "manager"} is empty, you need to add ${field ? "classes" : "fields"} first.\n> `, ephemeral:true }); // TODO sample command
+					return await interaction.reply({ content: `The ${field ? "field" : "manager"} is empty, you need to add ${field ? "classes" : "fields"} first.\n> /catman add \`field:\` ${field_role} \`name:\` ...`, ephemeral:true }); // TODO sample command
 				// Make sure there actually *is* a message to edit...
 				if (!(field ? field : manager).reactor.message)
-					return await interaction.reply({ content: `There is no message! Create one with:\n> \`/catman create-message channel: message: ${interaction.options.getString("message", false)} ${interaction.options.getRole("field", false) ? `field: ${interaction.options.getRole("field", false)}` : ""}\``, ephemeral: true });
+					return await interaction.reply({ content: `There is no message! Create one with:\n> /catman create-message \`channel:\` ... \`message:\` ${interaction.options.getString("message", false)} ${interaction.options.getRole("field", false) ? `\`field:\` ${interaction.options.getRole("field", false)}` : ""}`, ephemeral: true });
 
 				// Update reactor
 				editReactorText(interaction, field ? field : manager)
@@ -1252,13 +1281,46 @@ module.exports = {
 					return await interaction.reply({ content: `No field information set for ${field_role}`, ephemeral: true });
 
 				// TODO this is absolutely terrible, make an embed or something
-				return await interaction.reply(`${field.channel ? `category: ${interaction.guild.channels.resolve(field.channel).toString()}` : 'no category'}
-${field.prefix ? `prefix: ${field.prefix}` : 'no prefix'}
-React Role Message: ${field.reactor.channel && field.reactor.message ? interaction.guild.channels.resolve(field.reactor.channel).messages.resolve(field.reactor.message).url : 'no message'}
-Classes: [ ${field.classes.map(field_class => field_class.name).join(', ')} ]
-Roles: [ ${field.classes.map(field_class => field_class.role).map(id => interaction.guild.roles.resolve(id).toString()).join(', ')} ]
-Channels: [ ${field.classes.map(field_class => field_class.channel).map(id => interaction.guild.channels.resolve(id).toString()).join(', ')} ]
-Emoji: [ ${field.classes.map(field_class => field_class.emoji).join(', ')} ]`);
+				let message = "";
+				if (field.channel) {
+					const category = await interaction.guild.channels.fetch(field.channel).catch(console.error);
+					message += category ? `Channel Category: ${category.toString()}` : 'Could not fetch category!';
+				}
+				else message += "No Channel Category Set";
+				message += `\n${field.prefix ? `Prefix: ${field.prefix}` : 'No Prefix Set'}\n`;
+				if (field.reactor.channel && field.reactor.message) {
+					message += "React Role Message: ";
+					const channel = await interaction.guild.channels.fetch(field.reactor.channel).catch(console.error);
+					if (channel) {
+						const embed = await channel.messages.fetch(field.reactor.message).catch(console.error);
+						message += embed ? embed.url : 'Could not fetch message!';
+					}
+					else message += 'Could not fetch channel!';
+				}
+				else message += "No React Role Message Created";
+				message += `\nClasses: [ ${field.classes.map(c => c.name).join(', ')} ]\nRoles: [ `;
+				let first = true;
+				field.classes.map(c => c.role).forEach(snowflake => {
+					if (first)
+						first = false;
+					else
+						message += ', ';
+					const role = interaction.guild.roles.resolve(snowflake);
+					message += role ? role.toString() : 'Could not fetch role!';
+				});
+				message += ` ]\nChannels: [ `;
+				first = true;
+				field.classes.map(c => c.channel).forEach(snowflake => {
+					if (first)
+						first = false;
+					else
+						message += ', ';
+					const channel = interaction.guild.channels.resolve(snowflake);
+					message += channel ? channel.toString() : 'Could not fetch channel!';
+				});
+				message += ` ]\nEmoji: [ ${field.classes.map(c => c.emoji).join(', ')} ]`;
+
+				return await interaction.reply(message);
 			case 'add':
 				if (!field)
 					return await interaction.reply({ content: `No field information set for ${field_role}`, ephemeral: true });
