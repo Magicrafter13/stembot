@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Permissions } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 
 function purgeRoles(interaction, masterID, subIDs) {
 	console.log(`master: ${masterID}\nsub: ${subIDs}`);
@@ -23,7 +23,7 @@ function purgeRoles(interaction, masterID, subIDs) {
 	.catch(console.error);
 }
 
-function old_purgeRoles(message, roles, masterID, subIDs) {
+/*function old_purgeRoles(message, roles, masterID, subIDs) {
 	roles.fetch(masterID)
 		.then(masterRole => {
 			subIDs.forEach(id => {
@@ -40,7 +40,7 @@ function old_purgeRoles(message, roles, masterID, subIDs) {
 			})
 		})
 	.catch(console.error);
-}
+}*/
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -50,12 +50,12 @@ module.exports = {
 			.setName("bot")
 			.setDescription("Clean bot roles from users.")
 			.setRequired(false)
-			.addChoice("Enable", 1)),
+			.addChoices({ name: "Enable", value: 1 })),
 	guildOnly: true,
 	cooldown: 0,
 	async execute(interaction) {
 		// Check for authorization
-		if (!interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_ROLES))
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles))
 			return await interaction.reply({ content: 'You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES', ephemeral: true });
 
 		// Clean bot-only role from users
@@ -75,7 +75,9 @@ module.exports = {
 			if (botRoleIDs.length) {
 				const botRoles = botRoleIDs.map(id => interaction.guild.roles.cache.find(role => role.id === id));
 				botRoles.forEach(role => {
+					console.log(`role ${role}`)
 					role.members.each(member => {
+						console.log(`member ${member}`)
 						if (!member.user.bot) {
 							member.roles.remove(role, `${interaction.user.username} requested bot role clean, ${role.name} is in the bot role list.`);
 							interaction.followUp(`Removed ${role} from ${member.displayName}.`);
@@ -102,11 +104,11 @@ module.exports = {
 		categories.fields.forEach(field => purgeRoles(interaction, field.id, field.classes.map(class_data => class_data.role)));
 		return await interaction.editReply("Cleaned user roles.");
 	},
-	argsMin: 0,
+	/*argsMin: 0,
 	argsMax: 1,
 	old_execute(message, args, settings) {
 		// Check for authorization
-		if (!message.member.permissions.has(Permissions.FLAGS.MANAGE_ROLES))
+		if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles))
 			return message.reply('You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES');
 
 		// Clean bot-only role from users
@@ -153,5 +155,5 @@ ${prefix}clean (-b | --bot)
 For each field in the manager (see catman), removes all class roles from users who don't have the field's role.
 \t-b --bot  Removes all roles in the manager (see botman) from non-bot users.
 `;
-	},
+	},*/
 };

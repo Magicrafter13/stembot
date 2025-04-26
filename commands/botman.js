@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Permissions } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -29,7 +29,7 @@ module.exports = {
 	cooldown: 0.5,
 	async execute(interaction) {
 		// Check if user has required permissions.
-		if (!interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles, { checkAdmin: true }))
 			return await interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', ephemeral: true });
 
 		const botRoleDB = interaction.client.settings.get('botRoles');
@@ -57,8 +57,8 @@ module.exports = {
 				return;
 			case 'add': {
 				const role = interaction.options.getRole("role", true);
-				if (interaction.guild.me.roles.highest.comparePositionTo(role) <= 0)
-					return await interaction.reply(`I cannot manage this role! I can only manage roles below ${interaction.guild.me.roles.highest}.`);
+				if (interaction.guild.members.me.roles.highest.comparePositionTo(role) <= 0)
+					return await interaction.reply(`I cannot manage this role! I can only manage roles below ${interaction.guild.members.me.roles.highest}.`);
 				botRoles.push(role.id);
 				botRoleDB.set(interaction.guildId, botRoles);
 				return await interaction.reply(`Added ${role} to the bot role list.`);
@@ -74,7 +74,7 @@ module.exports = {
 			}
 		}
 	},
-	argsMin: 1,
+	/*argsMin: 1,
 	argsMax: 2,
 	old_execute(message, args, settings) {
 		// Check if user has required permissions.
@@ -133,8 +133,8 @@ module.exports = {
 				message.channel.send(`Current Bot Roles List: [ ${botRoles.map(id => message.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`);
 			})
 		.catch(console.error);
-	},
-	help(prefix) {
+	},*/
+	/*help(prefix) {
 		return `
 ${prefix}botman (-p | -c)
 ${prefix}botman (-a | -r) <role>
@@ -144,5 +144,5 @@ ${prefix}botman (-a | -r) <role>
 \t-a --add     Adds role to the manager.
 \t-r --remove  Removes role from the manager.
 `;
-	},
+	},*/
 };

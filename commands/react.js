@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Permissions, MessageEmbed } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js'); // Discord.js library - wrapper for Discord API
 
 async function addRole(interaction, reactor) {
 	const new_role = interaction.options.getRole("role", true);
@@ -25,7 +25,7 @@ async function addRole(interaction, reactor) {
 	}
 }
 
-async function old_addRole(message, reactor, args) {
+/*async function old_addRole(message, reactor, args) {
 	if (!args.length)
 		return message.channel.send('Missing argument, requires a role.');
 
@@ -57,7 +57,7 @@ async function old_addRole(message, reactor, args) {
 		if (reactor.message && reactor.channel)
 			editReactMessage(message.guild, reactor);
 	}
-}
+}*/
 
 async function removeRole(interaction, reactor) {
 	const old_role = interaction.options.getRole("role", true);
@@ -82,7 +82,7 @@ async function removeRole(interaction, reactor) {
 	return await interaction.reply(`Removed ${old_role} from react-role message.`);
 }
 
-async function old_removeRole(message, reactor, args) {
+/*async function old_removeRole(message, reactor, args) {
 	if (!args.length)
 		return message.channel.send('Missing argument, requires a role.');
 
@@ -110,7 +110,7 @@ async function old_removeRole(message, reactor, args) {
 		.catch(console.error);
 		editReactMessage(message.guild, reactor);
 	}
-}
+}*/
 
 async function changeEmoji(interaction, reactor) {
 	const role = interaction.options.getRole("role", true);
@@ -131,7 +131,7 @@ async function changeEmoji(interaction, reactor) {
 		editReactMessage(interaction.guild, reactor);
 }
 
-async function old_changeEmoji(message, reactor, args) {
+/*async function old_changeEmoji(message, reactor, args) {
 	if (!args.length)
 		return message.channel.send('Missing argument, requires a role.');
 
@@ -153,7 +153,7 @@ async function old_changeEmoji(message, reactor, args) {
 				editReactMessage(message.guild, reactor);
 		})
 	.catch(console.error);
-}
+}*/
 
 async function setEmoji(interaction, reactor, role) {
 	const emoji = interaction.options.getString("emoji", true);
@@ -177,7 +177,7 @@ async function setEmoji(interaction, reactor, role) {
 	role.emoji = emoji;
 }
 
-async function old_setEmoji(message, reactor, role, args) {
+/*async function old_setEmoji(message, reactor, role, args) {
 	if (!args.length)
 		return message.channel.send('Missing argument, requires an emoji.');
 
@@ -202,7 +202,7 @@ async function old_setEmoji(message, reactor, role, args) {
 	}
 	// Update the emoji
 	role.emoji = emoji;
-}
+}*/
 
 async function createReactMessage(interaction, reactor) {
 	const channel = interaction.options.getChannel("channel", true);
@@ -210,7 +210,7 @@ async function createReactMessage(interaction, reactor) {
 	// Delete previous react-role message if one exists
 	await deleteReactMessage(interaction.guild, reactor);
 
-	await interaction.reply({ content: 'Generating embed...', ephemeral: true });
+	await interaction.reply({ content: 'Generating embed...', flags: MessageFlags.Ephemeral });
 
 	// Create message.
 	const message = await channel.send({ content: '_ _', embeds: [ { title: 'Generating embed...' } ] });
@@ -227,7 +227,7 @@ async function createReactMessage(interaction, reactor) {
 	.catch(console.error);
 }
 
-async function old_createReactMessage(message, reactor, args) {
+/*async function old_createReactMessage(message, reactor, args) {
 	if (!args.length)
 		return message.channel.send('Missing argument, requires a channel.');
 
@@ -251,7 +251,7 @@ async function old_createReactMessage(message, reactor, args) {
 
 	// Generate embed
 	return editReactMessage(message.guild, reactor).catch(console.error);
-}
+}*/
 
 async function deleteReactMessage(guild, reactor) {
 	if (reactor.message) {
@@ -268,16 +268,16 @@ async function editReactMessage(guild, reactor) {
 	// Get a text friendly list of roles
 	const roles = reactor.roles.map(role => `${role.emoji} - ${guild.roles.resolve(role.id)}`).join('\n');
 
-	const embed = new MessageEmbed()
+	const embed = new EmbedBuilder()
 	.setColor('#ee3f20')
 	.setTitle('Roles')
-	.setAuthor('Stembot', 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', 'https://gitlab.com/Magicrafter13/stembot')
+	.setAuthor({ name: 'Stembot', iconURL: 'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png', url: 'https://gitlab.com/Magicrafter13/stembot' })
 	.setDescription(reactor.text)
 	//.setThumbnail('link')
 	.addFields({ name: 'Roles:', value: reactor.roles.length ? roles : "None available (use --new)!" })
 	//.setImage('link')
 	.setTimestamp()
-	.setFooter('Report bugs on our GitLab repository.');
+	.setFooter({ text: 'Report bugs on our GitLab repository.' });
 
 	const channel = guild.channels.resolve(reactor.channel)
 	channel.messages.edit(reactor.message, { embeds: [ embed ] })
@@ -392,15 +392,15 @@ module.exports = {
 	cooldown: 0.5,
 	async execute(interaction) {
 		// Check if user has required permissions.
-		if (!interaction.memberPermissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
-			return await interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', ephemeral: true });
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles, { checkAdmin: true }))
+			return await interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', flags: MessageFlags.Ephemeral });
 
 		const reactDB = interaction.client.settings.get('react');
 		let manager = await reactDB.get(interaction.guildId)
 		.then(manager => manager ? manager : { reactors: [] })
 		.catch(console.error);
 		if (!manager)
-			return await interaction.reply({ content: "There was an error reading the database!", ephemeral: true });
+			return await interaction.reply({ content: "There was an error reading the database!", flags: MessageFlags.Ephemeral });
 		if (!manager.reactors)
 			manager.reactors = [];
 
@@ -413,7 +413,7 @@ module.exports = {
 				return await interaction.reply(`Here are the react-role messages currently in the database:\n${manager.reactors.map(reactor => `${reactor.name}: ${reactor.channel && reactor.message ? interaction.guild.channels.resolve(reactor.channel).messages.resolve(reactor.message).url : ''}`).join('\n')}`)
 			case 'new':
 				if (reactor)
-					return await interaction.reply({ content: 'A react-role message with this name already exists!', ephemeral: true });
+					return await interaction.reply({ content: 'A react-role message with this name already exists!', flags: MessageFlags.Ephemeral });
 
 				const new_reactor = newReactor;
 				new_reactor.name = name;
@@ -424,7 +424,7 @@ module.exports = {
 				return await interaction.reply(`Created new react-role data under '${name}'.`);
 			case 'delete':
 				if (!reactor)
-					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
 
 				// Remove from manager
 				manager.reactors.splice(manager.reactors.indexOf(reactor), 1);
@@ -440,7 +440,7 @@ module.exports = {
 				break;
 			case 'add-role':
 				if (!reactor)
-					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
 
 				// Try to add role to reactor.
 				addRole(interaction, reactor)
@@ -450,7 +450,7 @@ module.exports = {
 				break;
 			case 'remove-role':
 				if (!reactor)
-					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
 
 				// Try to remove role from reactor.
 				removeRole(interaction, reactor)
@@ -460,7 +460,7 @@ module.exports = {
 				break;
 			case 'change-emoji':
 				if (!reactor)
-					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
 
 				changeEmoji(interaction, reactor)
 				.then(() => reactDB.set(interaction.guildId, manager)) // Update database
@@ -468,7 +468,7 @@ module.exports = {
 				break;
 			case 'create-message':
 				if (!reactor)
-					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
 
 				if (!reactor.roles.length)
 					return await interaction.reply(`This reactor is empty, add some roles to it first with:\n> /react add-role \`name:\` ${name}`);
@@ -486,7 +486,7 @@ module.exports = {
 				break;
 			case 'set-text':
 				if (!reactor)
-					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, ephemeral: true });
+					return await interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
 
 				// Make sure there actually *is* a message to edit...
 				if (!reactor.message)
@@ -503,12 +503,12 @@ module.exports = {
 				break;
 		}
 	},
-	argsMin: 1,
+	/*argsMin: 1,
 	argsMax: -1,
 	old_execute(message, args, settings) {
 		// Check if user has required permissions.
 		const guildMember = message.guild.members.cache.get(message.author.id);
-		if (!guildMember.permissions.has(Permissions.FLAGS.MANAGE_ROLES, { checkAdmin: true }))
+		if (!guildMember.permissions.has(PermissionFlagsBits.ManageRoles, { checkAdmin: true }))
 			return message.reply('You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES');
 
 		const reactDB = settings.get('react');
@@ -648,5 +648,5 @@ ${prefix}react (-st | --set-text) <name> <message>
                      reactions to receive specific roles.
 -st --set-text       Change the description text of a reactor message.
 `;
-	},
+	},*/
 }

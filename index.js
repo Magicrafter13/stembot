@@ -1,7 +1,7 @@
 const fs = require('fs'); // Node's native file system module
-const { Intents, Client, Collection } = require('discord.js'); // Discord.js library - wrapper for Discord API
-//const Discord = require('discord.js');
-const Keyv = require('keyv'); // Key-Value database
+const { Client, Collection, GatewayIntentBits, MessageFlags } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const Keyv = require('keyv').default; // Key-Value database
+const KeyvRedis = require('@keyv/redis').default;
 
 // TODO: create integration role for bot, like most other bots have (server owners can't delete it without kicking the bot?)
 
@@ -14,9 +14,9 @@ const { version } = require('./package.json');
 const version_short = version.replace(/\.\d+$/, '');
 
 // Setup Database
-const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
-const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
-const react = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'react' });
+const botRoles = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'botRoles' });
+const categories = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'categories' });
+const react = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'react' });
 botRoles.on('error', err => console.log('Connection Error', err));
 categories.on('error', err => console.log('Connection Error', err));
 react.on('error', err => console.log('Connection Error', err));
@@ -26,16 +26,18 @@ settings.set('botRoles', botRoles);
 settings.set('categories', categories);
 settings.set('react', react);
 
-// Register Intents
-const reqIntents = new Intents();
-reqIntents.add(Intents.FLAGS.GUILDS);
-reqIntents.add(Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS);
-//reqIntents.add('DIRECT_MESSAGES');
-//reqIntents.add('GUILD_MEMBERS', 'GUILD_EMOJIS');
-//reqIntents.add('GUILD_PRESENCES');
-
 // Register Client
-const client = new Client({ intents: reqIntents }); // register Discord client
+const client = new Client({
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.GuildMessageReactions,
+		//GatewayIntentBits.DirectMessages,
+		GatewayIntentBits.GuildMembers,
+		//GatewayIntentBits.GuildEmojis,
+		//GatewayIntentBits.GuildPresences,
+	]
+}); // register Discord client
 client.commands = new Collection(); // Create commands property as a JS collection
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
 client.settings = settings;
@@ -86,7 +88,15 @@ client.once('ready', () => {
 						await guild.channels.resolve(field.reactor.channel)
 							.messages.fetch(field.reactor.message).catch(console.error);
 					}
-				})
+				});
+
+				// Cache all members and roles
+				guild.members.fetch()
+				.then(members => console.log(`Fetched ${members.size} roles.`))
+				.catch(console.error);
+				guild.roles.fetch()
+				.then(roles => console.log(`Fetched ${roles.size} roles.`))
+				.catch(console.error);
 			})
 		.catch(console.error);
 		reactDB.get(guild.id)
@@ -295,12 +305,12 @@ client.on('interactionCreate', async interaction => {
 	}
 	catch (error) {
 		console.error(error);
-		await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+		await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
 	}
 });
 
 // Handle messages from users (requires channel read permission)
-client.on('messageCreate', message => {
+/*client.on('messageCreate', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
 
 	const args = message.content.slice(prefix.length).trim().split(/ +/); // looks for arguments and assigns them
@@ -357,7 +367,7 @@ client.on('messageCreate', message => {
 	if (!command) return; // No command called 'commandName' exists
 
 	if (command.guildOnly && message.channel.type === 'dm')
-		return message.reply('This command cannot be used in a DM.');
+		return message.reply('This command cannot be used in a DM.');*/
 
 	/*
 	 * May not actually go this route, as I plan to make some more complex commands, and I feel it may be
@@ -365,7 +375,7 @@ client.on('messageCreate', message => {
 	 * function return different values (error codes), and then we can call upon command.usage based on
 	 * what execute returns.
 	 */
-	if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
+	/*if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
 		return message.channel.send(`Invalid number of arguments, see \`${prefix}help ${command.name}\`.`);
 
 	if (!cooldowns.has(command.name)) {
@@ -397,7 +407,7 @@ client.on('messageCreate', message => {
 		console.error(error);
 		message.reply('there was an error trying to execute that command!'); // error message for user
 	}
-});
+});*/
 
 // login with token
 client.login(token);

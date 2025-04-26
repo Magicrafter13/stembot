@@ -9,7 +9,7 @@ module.exports = {
 	async execute(interaction) {
 		await interaction.reply(`Pong! This message had a latency of ${Date.now() - interaction.createdTimestamp}`);
 	},
-	argsMin: 0,
+	/*argsMin: 0,
 	argsMax: -1,
 	old_execute(message, args) {
 		message.channel.send(`Pong! This message had a latency of ${Date.now() - message.createdTimestamp}ms.`);
@@ -18,5 +18,5 @@ module.exports = {
 		return `
 ${prefix}ping
 `
-	},
+	},*/
 };
