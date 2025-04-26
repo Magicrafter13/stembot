@@ -1,6 +1,6 @@
 {
   "name": "stembot",
-  "version": "5.1.0",
+  "version": "6.0.0",
   "description": "STEM Bot",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "management"
   ],
   "author": "Matthew Rease",
-  "license": "ISC",
+  "license": "GPLv3",
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.com/Magicrafter13/stembot.git"
@@ -23,9 +23,14 @@
   },
   "homepage": "https://gitlab.com/Magicrafter13/stembot#readme",
   "dependencies": {
-    "@keyv/redis": "^2.1.2",
-    "discord.js": "^12.5.1",
-    "keyv": "^4.0.3"
+    "@discordjs/builders": "^1.10.1",
+    "@discordjs/rest": "^2.4.3",
+    "@keyv/redis": "^4.3.4",
+    "discord-api-types": "^0.38.1",
+    "discord.js": "^14.18.0",
+    "keyv": "^5.3.3"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "eslint": "^8.3.0"
+  }
 }

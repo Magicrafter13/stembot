@@ -1,6 +1,9 @@
 const fs = require('fs'); // Node's native file system module
-const Discord = require('discord.js'); // Discord.js library - wrapper for Discord API
-const Keyv = require('keyv'); // Key-Value database
+const { Client, Collection, GatewayIntentBits, MessageFlags } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const Keyv = require('keyv').default; // Key-Value database
+const KeyvRedis = require('@keyv/redis').default;
+
+// TODO: create integration role for bot, like most other bots have (server owners can't delete it without kicking the bot?)
 
 // Bot config file
 //  - prefix: Command prefix for messages directed at bot
@@ -11,9 +14,9 @@ const { version } = require('./package.json');
 const version_short = version.replace(/\.\d+$/, '');
 
 // Setup Database
-const botRoles = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'botRoles' });
-const categories = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'categories' });
-const react = new Keyv(`redis://${dbUser}:${dbPass}@localhost:6379`, { namespace: 'react' });
+const botRoles = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'botRoles' });
+const categories = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'categories' });
+const react = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'react' });
 botRoles.on('error', err => console.log('Connection Error', err));
 categories.on('error', err => console.log('Connection Error', err));
 react.on('error', err => console.log('Connection Error', err));
@@ -23,9 +26,21 @@ settings.set('botRoles', botRoles);
 settings.set('categories', categories);
 settings.set('react', react);
 
-const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] }); // register Discord client
-client.commands = new Discord.Collection(); // Create commands property as a JS collection
+// Register Client
+const client = new Client({
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.GuildMessageReactions,
+		//GatewayIntentBits.DirectMessages,
+		GatewayIntentBits.GuildMembers,
+		//GatewayIntentBits.GuildEmojis,
+		//GatewayIntentBits.GuildPresences,
+	]
+}); // register Discord client
+client.commands = new Collection(); // Create commands property as a JS collection
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
+client.settings = settings;
 
 // Load each .js command file
 for (const file of commandFiles) {
@@ -33,16 +48,16 @@ for (const file of commandFiles) {
 
 	// set a new item in the Collection
 	// with the key as the command name and the value as the exported module
-	client.commands.set(command.name, command);
+	client.commands.set(command.data.name, command);
 }
 
-const cooldowns = new Discord.Collection();
+const cooldowns = new Collection();
 const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will not be subject to the cooldown.
 
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
-	client.user.setPresence({ activity: { name: `${prefix}help`, type: 'LISTENING' }, status: 'online' });
+	client.user.setPresence({ activities: [ { name: `${prefix}help`, type: 'LISTENING' } ], status: 'online' });
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
@@ -59,8 +74,9 @@ client.once('ready', () => {
 					manager.reactor.message &&
 					!guild.channels.resolve(manager.reactor.channel)
 						.messages.cache.has(manager.reactor.message)) {
-					await guild.channels.resolve(manager.reactor.channel)
-						.messages.fetch(manager.reactor.message);
+					guild.channels.fetch(manager.reactor.channel)
+					.then(channel => channel.messages.fetch(manager.reactor.message))
+					.catch(console.error);
 				}
 
 				// Cache all class react-role messages
@@ -70,9 +86,17 @@ client.once('ready', () => {
 						!guild.channels.resolve(field.reactor.channel)
 							.messages.cache.has(field.reactor.message)) {
 						await guild.channels.resolve(field.reactor.channel)
-							.messages.fetch(field.reactor.message);
+							.messages.fetch(field.reactor.message).catch(console.error);
 					}
-				})
+				});
+
+				// Cache all members and roles
+				guild.members.fetch()
+				.then(members => console.log(`Fetched ${members.size} roles.`))
+				.catch(console.error);
+				guild.roles.fetch()
+				.then(roles => console.log(`Fetched ${roles.size} roles.`))
+				.catch(console.error);
 			})
 		.catch(console.error);
 		reactDB.get(guild.id)
@@ -92,6 +116,7 @@ client.once('ready', () => {
 				})
 			})
 		.catch(console.error);
+		console.log("Done caching I guess");
 	});
 });
 
@@ -239,8 +264,53 @@ client.on('messageReactionRemove', async (reaction, user) => {
 	.catch(console.error);
 });
 
+// Handle slash commands
+client.on('interactionCreate', async interaction => {
+	if (!interaction.isCommand())
+		return;
+
+	const command = client.commands.get(interaction.commandName);
+
+	if (!command)
+		return;
+
+	if (command.guildOnly && interaction.channel.type === 'DM')
+		return await interaction.reply('This command cannot be used in a DM.');
+
+	/*if (!cooldowns.has(command.data.name)) {
+		cooldowns.set(command.data.name, new Collection());
+	}
+
+	const now = Date.now();
+	const timestamps = cooldowns.get(command.name);
+	const cooldownAmount = (command.cooldown || 0) * 1000;
+
+	if (timestamps.has(interaction.member.id)) {
+		const expirationTime = timestamps.get(interaction.member.id) + cooldownAmount;
+
+		if (interaction.channel.type !== 'DM' && !interaction.member.permissions.any(permWhitelist)) {
+			if (now < expirationTime) {
+				const timeLeft = (expirationTime - now) / 1000;
+				return await interaction.reply(`please wait ${timeLeft.toFixed(1)} more second(s) before reusing the ${command.data.name} command.`);
+			}
+		}
+	}
+
+	timestamps.set(interaction.member.id, now);
+	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
+	setTimeout(() => timestamps.delete(interaction.member.id), cooldownAmount);*/
+
+	try {
+		await command.execute(interaction);
+	}
+	catch (error) {
+		console.error(error);
+		await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
+	}
+});
+
 // Handle messages from users (requires channel read permission)
-client.on('message', message => {
+/*client.on('messageCreate', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
 
 	const args = message.content.slice(prefix.length).trim().split(/ +/); // looks for arguments and assigns them
@@ -257,9 +327,10 @@ client.on('message', message => {
 		}
 		else {
 			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
-			return message.channel.send(`These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
-				{
-					embed: {
+			return message.channel.send({
+				content: `These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
+				embeds: [
+					{
 						hexColor: '#800028',
 						author: {
 							name: 'Clark Stembot',
@@ -282,7 +353,8 @@ client.on('message', message => {
 						timestamp: Date.now(),
 						type: 'rich'
 					}
-				});
+				]
+			});
 		}
 	}
 
@@ -295,7 +367,7 @@ client.on('message', message => {
 	if (!command) return; // No command called 'commandName' exists
 
 	if (command.guildOnly && message.channel.type === 'dm')
-		return message.reply('This command cannot be used in a DM.');
+		return message.reply('This command cannot be used in a DM.');*/
 
 	/*
 	 * May not actually go this route, as I plan to make some more complex commands, and I feel it may be
@@ -303,11 +375,11 @@ client.on('message', message => {
 	 * function return different values (error codes), and then we can call upon command.usage based on
 	 * what execute returns.
 	 */
-	if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
+	/*if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
 		return message.channel.send(`Invalid number of arguments, see \`${prefix}help ${command.name}\`.`);
 
 	if (!cooldowns.has(command.name)) {
-		cooldowns.set(command.name, new Discord.Collection());
+		cooldowns.set(command.name, new Collection());
 	}
 
 	const now = Date.now();
@@ -326,15 +398,16 @@ client.on('message', message => {
 	}
 
 	timestamps.set(message.author.id, now);
+	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
 	setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
 	try {
-		command.execute(message, args, settings); // attempts to execute command
+		command.old_execute(message, args, settings); // attempts to execute command
 	} catch (error) {
 		console.error(error);
 		message.reply('there was an error trying to execute that command!'); // error message for user
 	}
-});
+});*/
 
 // login with token
 client.login(token);
