@@ -7,16 +7,27 @@ const KeyvRedis = require('@keyv/redis').default;
 
 // Bot config file
 //  - prefix: Command prefix for messages directed at bot
-//  - token:  Discord token for bot login
-const { prefix, token, dbUser, dbPass } = require('./config.json');
+//const { prefix } = require('./config.json');
 
 const { version } = require('./package.json');
 const version_short = version.replace(/\.\d+$/, '');
 
 // Setup Database
-const botRoles = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'botRoles' });
-const categories = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'categories' });
-const react = new Keyv({ store: new KeyvRedis({ uri: `redis://:${dbPass}@localhost:6379` }), namespace: 'react' });
+const redisOptions = {
+	url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
+	username: process.env.REDIS_USER,
+	password: process.env.REDIS_PASSWORD,
+
+	socket: {
+		host: process.env.REDIS_HOST,
+		port: process.env.REDIS_PORT,
+
+		tls: false,
+	}
+};
+const botRoles = new Keyv({ store: new KeyvRedis(redisOptions), namespace: 'botRoles' });
+const categories = new Keyv({ store: new KeyvRedis(redisOptions), namespace: 'categories' });
+const react = new Keyv({ store: new KeyvRedis(redisOptions), namespace: 'react' });
 botRoles.on('error', err => console.log('Connection Error', err));
 categories.on('error', err => console.log('Connection Error', err));
 react.on('error', err => console.log('Connection Error', err));
@@ -35,7 +46,7 @@ const client = new Client({
 		//GatewayIntentBits.DirectMessages,
 		GatewayIntentBits.GuildMembers,
 		//GatewayIntentBits.GuildEmojis,
-		//GatewayIntentBits.GuildPresences,
+		GatewayIntentBits.GuildPresences,
 	]
 }); // register Discord client
 client.commands = new Collection(); // Create commands property as a JS collection
@@ -57,7 +68,7 @@ const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will no
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
-	client.user.setPresence({ activities: [ { name: `${prefix}help`, type: 'LISTENING' } ], status: 'online' });
+	client.user.setPresence({ activities: [ { name: `/help`, type: 'LISTENING' } ], status: 'online' });
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
@@ -410,4 +421,4 @@ client.on('interactionCreate', async interaction => {
 });*/
 
 // login with token
-client.login(token);
+client.login(process.env.DISCORD_TOKEN);
