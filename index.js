@@ -1,5 +1,5 @@
 const fs = require('fs'); // Node's native file system module
-const { Client, Collection, GatewayIntentBits, MessageFlags, PermissionFlagsBits } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { ActivityType, Client, Collection, GatewayIntentBits, MessageFlags, PermissionFlagsBits, PresenceUpdateStatus } = require('discord.js'); // Discord.js library - wrapper for Discord API
 const Keyv = require('keyv').default; // Key-Value database
 const KeyvRedis = require('@keyv/redis').default;
 
@@ -46,7 +46,7 @@ const client = new Client({
 		//GatewayIntentBits.DirectMessages,
 		GatewayIntentBits.GuildMembers,
 		//GatewayIntentBits.GuildEmojis,
-		GatewayIntentBits.GuildPresences,
+		//GatewayIntentBits.GuildPresences,
 	]
 }); // register Discord client
 client.commands = new Collection(); // Create commands property as a JS collection
@@ -68,7 +68,7 @@ const permWhitelist = PermissionFlagsBits.Administrator; // Users with these per
 // Execute first time ready event is received only
 client.once('ready', () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
-	client.user.setPresence({ activities: [ { name: `/help`, type: 'LISTENING' } ], status: 'online' });
+	client.user.setPresence({ activities: [ { name: `/help`, type: ActivityType.Listening } ], status: PresenceUpdateStatus.Online });
 
 	// Cache react-role messages, so they are ready for messageReaction events.
 	const fieldDB = settings.get('categories');
