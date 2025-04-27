@@ -1,5 +1,5 @@
 const fs = require('fs'); // Node's native file system module
-const { Client, Collection, GatewayIntentBits, MessageFlags } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { Client, Collection, GatewayIntentBits, MessageFlags, PermissionFlagsBits } = require('discord.js'); // Discord.js library - wrapper for Discord API
 const Keyv = require('keyv').default; // Key-Value database
 const KeyvRedis = require('@keyv/redis').default;
 
@@ -63,7 +63,7 @@ for (const file of commandFiles) {
 }
 
 const cooldowns = new Collection();
-const permWhitelist = ['ADMINISTRATOR']; // Users with these permissions will not be subject to the cooldown.
+const permWhitelist = PermissionFlagsBits.Administrator; // Users with these permissions will not be subject to the cooldown.
 
 // Execute first time ready event is received only
 client.once('ready', () => {
@@ -288,16 +288,16 @@ client.on('interactionCreate', async interaction => {
 	if (command.guildOnly && interaction.channel.type === 'DM')
 		return await interaction.reply('This command cannot be used in a DM.');
 
-	/*if (!cooldowns.has(command.data.name)) {
+	if (!cooldowns.has(command.data.name)) {
 		cooldowns.set(command.data.name, new Collection());
 	}
 
 	const now = Date.now();
-	const timestamps = cooldowns.get(command.name);
+	const timestamps = cooldowns.get(command.data.name);
 	const cooldownAmount = (command.cooldown || 0) * 1000;
 
-	if (timestamps.has(interaction.member.id)) {
-		const expirationTime = timestamps.get(interaction.member.id) + cooldownAmount;
+	if (timestamps.has(interaction.user.id)) {
+		const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
 
 		if (interaction.channel.type !== 'DM' && !interaction.member.permissions.any(permWhitelist)) {
 			if (now < expirationTime) {
@@ -307,9 +307,9 @@ client.on('interactionCreate', async interaction => {
 		}
 	}
 
-	timestamps.set(interaction.member.id, now);
+	timestamps.set(interaction.user.id, now);
 	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
-	setTimeout(() => timestamps.delete(interaction.member.id), cooldownAmount);*/
+	setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
 
 	try {
 		await command.execute(interaction);
