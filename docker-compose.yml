@@ -8,8 +8,6 @@ services:
       - REDIS_USER=stembot
       - REDIS_PASSWORD=supersecretpassword
       - DISCORD_TOKEN=abcdefg.......
-    volumes:
-      - ./config.json:/app/config.json:ro
     depends_on:
       valkey:
         condition: service_healthy
