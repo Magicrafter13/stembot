@@ -1,3 +1,2 @@
-node_modules/
-testing/
-config.json
+/node_modules/
+/.env

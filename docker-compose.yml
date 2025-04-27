@@ -1,0 +1,37 @@
+services:
+  stembot:
+    build: .
+    #image: registry.gitlab.matthewrease.net/matthew/stembot:latest
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - REDIS_USER=stembot
+      - REDIS_PASSWORD=supersecretpassword
+      - DISCORD_TOKEN=abcdefg.......
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  valkey:
+    image: valkey/valkey:latest
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - db_data:/data
+    post_start:
+      - command: |
+          sh -c '
+            echo "
+            ACL SETUSER stembot on >supersecretpassword allcommands allkeys
+            ACL SETUSER default off
+            " | valkey-cli -h valkey
+          '
+        user: root
+        privileged: true
+
+volumes:
+  db_data:
+    driver: local
