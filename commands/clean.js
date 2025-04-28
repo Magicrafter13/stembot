@@ -13,7 +13,7 @@ function purgeRoles(interaction, masterID, subIDs) {
 							if (!member.roles.cache.has(masterID)) {
 								interaction.followUp(`Removing ${role.name} from ${member.displayName}.`);
 								console.log(`Removing ${role.name} from ${member.displayName}.`);
-								member.roles.remove(id, `${message.author.username} requested role clean. User did not have ${masterRole.name}.`);
+								member.roles.remove(id, `${interaction.user.username} requested role clean. User did not have ${masterRole.name}.`);
 							}
 						});
 					})
