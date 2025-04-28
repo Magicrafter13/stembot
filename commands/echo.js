@@ -13,16 +13,4 @@ module.exports = {
 	async execute(interaction) {
 		await interaction.reply(interaction.options.get("text", true).value);
 	},
-	/*argsMin: 1,
-	argsMax: -1,
-	old_execute(message, args) {
-		message.channel.send(args.join(' '));
-	},
-	help(prefix) {
-		return `
-${prefix}echo <the_message>
-
-Bot replies with the_message.
-`;
-	},*/
 };
