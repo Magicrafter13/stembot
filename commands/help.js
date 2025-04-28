@@ -1,5 +1,8 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 
+const { version } = require('../package.json');
+const version_short = version.replace(/\.\d+$/, '');
+
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('help')
@@ -30,7 +33,7 @@ module.exports = {
 					footer: {
 						text: `Clark Stembot - Version ${version_short}`
 					},
-					timestamp: Date.now(),
+					timestamp: (new Date(Date.now())).toISOString(),
 					type: 'rich'
 				}
 			]
