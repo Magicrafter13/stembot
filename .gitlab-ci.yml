@@ -1,8 +1,8 @@
 # adapted from https://gitlab.matthewrease.net/matthew/ways
 
-docker-build:
-  image: docker:cli
+docker-build-self:
   stage: build
+  image: docker:cli
   variables:
     DOCKER_IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
   before_script:
@@ -30,21 +30,67 @@ docker-build:
         esac
       fi
   rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_SERVER_HOST == "gitlab.matthewrease.net"'
       exists:
         - Dockerfile
       when: always
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_SERVER_HOST == "gitlab.matthewrease.net"'
       exists:
         - Dockerfile
       when: always
-    - if: $CI_COMMIT_TAG
+    - if: '$CI_COMMIT_TAG && $CI_SERVER_HOST == "gitlab.matthewrease.net"'
       exists:
         - Dockerfile
       when: always
     - when: never
   tags:
     - docker
+
+docker-build-gitlab:
+  stage: build
+  image: docker:cli
+  services:
+    - docker:dind
+  variables:
+    DOCKER_IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+  script:
+    - docker build --pull -t "$DOCKER_IMAGE_NAME" .
+    - |
+      if [[ -n "$CI_COMMIT_TAG" ]]; then
+        # Tag :git-tags on any branch
+        docker tag "$DOCKER_IMAGE_NAME" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+      else
+        case "$CI_COMMIT_BRANCH" in
+          "master") # Tag :latest on master
+            docker tag "$DOCKER_IMAGE_NAME" "$CI_REGISTRY_IMAGE:latest"
+            docker push "$CI_REGISTRY_IMAGE:latest"
+            ;;
+          "develop") # Tag :develop on develop
+            docker tag "$DOCKER_IMAGE_NAME" "$CI_REGISTRY_IMAGE:develop"
+            docker push "$CI_REGISTRY_IMAGE:develop"
+            ;;
+          *)
+            echo "Branch $CI_COMMIT_BRANCH does not trigger a Docker push."
+            ;;
+        esac
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_SERVER_HOST == "gitlab.com"'
+      exists:
+        - Dockerfile
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_SERVER_HOST == "gitlab.com"'
+      exists:
+        - Dockerfile
+      when: always
+    - if: '$CI_COMMIT_TAG && $CI_SERVER_HOST == "gitlab.com"'
+      exists:
+        - Dockerfile
+      when: always
+    - when: never
 
 deploy-stembot:
   stage: deploy
@@ -58,9 +104,9 @@ deploy-stembot:
     - ssh -i "$SSH_PRIVATE_KEY" "$SSH_USER@$SSH_HOST" "deploy $CI_COMMIT_TAG"
   rules:
     # Major (breaking) update
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.0$/ && $CI_COMMIT_REF_NAME == "master"'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.0$/ && $CI_COMMIT_REF_NAME == "master" && $CI_SERVER_HOST == "gitlab.matthewrease.net"'
       when: manual
     # Minor update
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+$/ && $CI_COMMIT_REF_NAME == "master"'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+$/ && $CI_COMMIT_REF_NAME == "master" && $CI_SERVER_HOST == "gitlab.matthewrease.net"'
       when: always
     - when: never
