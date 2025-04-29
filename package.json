@@ -28,7 +28,8 @@
     "@keyv/redis": "^4.3.4",
     "discord-api-types": "^0.38.1",
     "discord.js": "^14.18.0",
-    "keyv": "^5.3.3"
+    "keyv": "^5.3.3",
+		"emoji-regex": "^10.4.0"
   },
   "devDependencies": {
     "eslint": "^8.3.0"

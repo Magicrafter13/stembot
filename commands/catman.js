@@ -1,5 +1,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { EmbedBuilder, MessageFlags, parseEmoji, PermissionFlagsBits } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const emojiRegex = require('emoji-regex');
+const emojiTest = emojiRegex();
 
 async function setEmoji(interaction, manager, data) {
 	// Determine data type
@@ -7,6 +9,11 @@ async function setEmoji(interaction, manager, data) {
 
 	// Get emoji from user
 	const emoji = interaction.options.getString("emoji", true);
+
+	// Check if emoji string is valid
+	const emojiObject = parseEmoji(emoji);
+	if (!emojiObject.id && !(emojiTest.test(emojiObject.name) && emojiObject.name.match(emojiTest)[0] === emojiObject.name))
+		return null;
 
 	// Check if emoji already in use.
 	if ((type === 'field' ? manager.fields : manager.classes).find(thing => thing.emoji === emoji))
@@ -43,6 +50,8 @@ async function setEmoji(interaction, manager, data) {
 				interaction.followUp({ content: 'Failed to fetch channel containing embed message, make sure I have the proper permissions for the category/server!', flags: MessageFlags.Ephemeral});
 			});
 	}
+
+	return emojiObject;
 }
 
 async function addClass(interaction, field) {
@@ -65,6 +74,11 @@ async function addClass(interaction, field) {
 
 	// Get emoji from user, or null of none specified
 	const emoji = interaction.options.getString("emoji", false);
+
+	// Check if emoji string is valid
+	const emojiObject = parseEmoji(emoji);
+	if (!emojiObject.id && !(emojiTest.test(emojiObject.name) && emojiObject.name.match(emojiTest)[0] === emojiObject.name))
+		return await interaction.reply(`\`${emoji}\` cannot be resolved to a valid emoji!`)
 
 	// Add new class to field
 	field.classes.push({
@@ -106,6 +120,11 @@ async function createClass(interaction, field) {
 
 	// Get emoji from user, null if none specified
 	emoji = interaction.options.getString("emoji", false);
+
+	// Check if emoji string is valid
+	const emojiObject = parseEmoji(emoji);
+	if (!emojiObject.id && !(emojiTest.test(emojiObject.name) && emojiObject.name.match(emojiTest)[0] === emojiObject.name))
+		return await interaction.reply(`\`${emoji}\` cannot be resolved to a valid emoji!`)
 
 	// Check if emoji is already in use
 	if (emoji) {
@@ -704,7 +723,9 @@ module.exports = {
 				/*if (class_role)
 				field = manager.fields.find(field => field.id === role.id);*/
 				setEmoji(interaction, class_data ? field : manager, class_data ? class_data : field)
-					.then(() => {
+					.then(result => {
+						if (result === null)
+							return interaction.reply(`\`${interaction.options.getString('emoji', true)}\` cannot be resolved to a valid emoji!`)
 						// Update embed message
 						editReactMessage(interaction, class_data ? field : manager)
 						.then(() => fieldDB.set(interaction.guildId, manager)) // Update database

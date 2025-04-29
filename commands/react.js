@@ -1,5 +1,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const { EmbedBuilder, parseEmoji, PermissionFlagsBits, MessageFlags } = require('discord.js'); // Discord.js library - wrapper for Discord API
+const emojiRegex = require('emoji-regex');
+const emojiTest = emojiRegex();
 
 async function addRole(interaction, reactor) {
 	const new_role = interaction.options.getRole("role", true);
@@ -12,7 +14,8 @@ async function addRole(interaction, reactor) {
 	const new_obj = { id: new_role.id, emoji: null };
 
 	// Set the emoji
-	await setEmoji(interaction, reactor, new_obj);
+	if (await setEmoji(interaction, reactor, new_obj) === null)
+		return await interaction.reply(`\`${interaction.options.getString('emoji', true)}\` cannot be resolved to a valid emoji!`)
 
 	// Check if emoji was successfully added, or if it was already in use
 	if (new_obj.emoji) {
@@ -60,7 +63,8 @@ async function changeEmoji(interaction, reactor) {
 		return await interaction.reply(`${reactor.name} already uses ${obj.emoji}.`);
 
 	// Set the emoji
-	await setEmoji(interaction, reactor, obj);
+	if (await setEmoji(interaction, reactor, obj) === null)
+		return await interaction.reply(`\`${interaction.options.getString('emoji', true)}\` cannot be resolved to a valid emoji!`)
 	await interaction.reply(`Changed ${role} to ${obj.emoji}.`);
 
 	if (reactor.channel && reactor.message)
@@ -69,6 +73,11 @@ async function changeEmoji(interaction, reactor) {
 
 async function setEmoji(interaction, reactor, role) {
 	const emoji = interaction.options.getString("emoji", true);
+
+	// Check if emoji string is valid
+	const emojiObject = parseEmoji(emoji);
+	if (!emojiObject.id && !(emojiTest.test(emojiObject.name) && emojiObject.name.match(emojiTest)[0] === emojiObject.name))
+		return null;
 
 	// Check if another role already uses this emoji
 	if (reactor.roles.find(r_role => r_role.emoji === emoji))
@@ -87,6 +96,7 @@ async function setEmoji(interaction, reactor, role) {
 	}
 	// Update the role data
 	role.emoji = emoji;
+	return emojiObject;
 }
 
 async function createReactMessage(interaction, reactor) {
