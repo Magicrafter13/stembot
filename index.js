@@ -1,18 +1,19 @@
-const fs = require('fs'); // Node's native file system module
-const { ActivityType, Client, Collection, GatewayIntentBits, MessageFlags, PermissionFlagsBits, PresenceUpdateStatus } = require('discord.js'); // Discord.js library - wrapper for Discord API
-const Keyv = require('keyv').default; // Key-Value database
-const KeyvRedis = require('@keyv/redis').default;
+import {
+	ActivityType,
+	Client,
+	Collection,
+	GatewayIntentBits,
+	MessageFlags,
+	PermissionFlagsBits,
+	PresenceUpdateStatus,
+} from "discord.js";     // Discord.js library - wrapper for Discord API
+import fs from "fs";     // Node's native file system module
+import Keyv from "keyv"; // Key-Value database
+import KeyvRedis from "@keyv/redis";
 
 // TODO: create integration role for bot, like most other bots have (server owners can't delete it without kicking the bot?)
 
-// Bot config file
-//  - prefix: Command prefix for messages directed at bot
-//const { prefix } = require('./config.json');
-
-const { version } = require('./package.json');
-const version_short = version.replace(/\.\d+$/, '');
-
-// Setup Database
+// Setup and Load Database
 const redisOptions = {
 	url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
 	username: process.env.REDIS_USER,
@@ -32,11 +33,6 @@ botRoles.on('error', err => console.log('Connection Error', err));
 categories.on('error', err => console.log('Connection Error', err));
 react.on('error', err => console.log('Connection Error', err));
 
-let settings = new Map();
-settings.set('botRoles', botRoles);
-settings.set('categories', categories);
-settings.set('react', react);
-
 // Register Client
 const client = new Client({
 	intents: [
@@ -46,234 +42,219 @@ const client = new Client({
 		//GatewayIntentBits.DirectMessages,
 		GatewayIntentBits.GuildMembers,
 		//GatewayIntentBits.GuildEmojis,
-		//GatewayIntentBits.GuildPresences,
 	]
-}); // register Discord client
-client.commands = new Collection(); // Create commands property as a JS collection
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
+});
+
+const settings = new Map();
+settings.set('botRoles', botRoles);
+settings.set('categories', categories);
+settings.set('react', react);
 client.settings = settings;
 
-// Load each .js command file
-for (const file of commandFiles) {
-	const command = require(`./commands/${file}`);
-
-	// set a new item in the Collection
-	// with the key as the command name and the value as the exported module
+// Load commands.
+client.commands = new Collection(); // Create commands property as a JS collection
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js')); // Get an array of all commands.
+const commandModules = await Promise.all(commandFiles.map(file => import(`./commands/${file}`)));
+for (const module of commandModules) {
+	const command = module.default;
 	client.commands.set(command.data.name, command);
 }
 
 const cooldowns = new Collection();
 const permWhitelist = PermissionFlagsBits.Administrator; // Users with these permissions will not be subject to the cooldown.
 
-// Execute first time ready event is received only
-client.once('ready', () => {
+// When client is ready, cache members, roles, and messages, for reaction events.
+client.once('ready', async () => {
 	console.log(`Logged in as ${client.user.tag}, and ready to serve.`);
 	client.user.setPresence({ activities: [ { name: `/help`, type: ActivityType.Listening } ], status: PresenceUpdateStatus.Online });
 
-	// Cache react-role messages, so they are ready for messageReaction events.
-	const fieldDB = settings.get('categories');
-	const reactDB = settings.get('react');
-	client.guilds.cache.each(guild => {
-		console.log(`Caching messages in ${guild}.`)
-		fieldDB.get(guild.id)
-			.then(async function (manager) {
-				if (!manager)
-					return; // User has no field manager database setup
+	// Cache all members and roles
+	Promise.all(client.guilds.cache.map(guild => [
+		guild.members.fetch().then(members => console.log(`Fetched ${members.size} members from ${guild.id}.`)),
+		guild.roles.fetch().then(roles => console.log(`Fetched ${roles.size} roles from ${guild.id}.`))
+	]).flat());
 
-				// Cache field react-role message
-				if (manager.reactor.channel &&
-					manager.reactor.message &&
-					!guild.channels.resolve(manager.reactor.channel)
-						.messages.cache.has(manager.reactor.message)) {
-					guild.channels.fetch(manager.reactor.channel)
-					.then(channel => channel.messages.fetch(manager.reactor.message))
-					.catch(console.error);
-				}
+	// Cache field/class messages.
+	try {
+		const fieldManagers = (await Promise.all(
+			client.guilds.cache.map(guild =>
+				categories.get(guild.id).then(manager => ({ guild, manager }))
+			)
+		)).filter(({ manager }) => manager);
+		Promise.all(fieldManagers.map(({ guild, manager }) => [
+			(manager.reactor.channel && manager.reactor.message && !guild.channels.resolve(manager.reactor.channel).messages.cache.has(manager.reactor.message))
+				? guild.channels.fetch(manager.reactor.channel).then(channel => channel.messages.fetch(manager.reactor.message))
+				: null,
+			manager.fields.map(field => (field.reactor.channel && field.reactor.message && !guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message)) ? guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message) : null)
+		].flat().filter(promise => promise))).then(console.log('Cached all field and class messages.'));
+	}
+	catch (err) {
+		console.error(err);
+	}
 
-				// Cache all class react-role messages
-				manager.fields.forEach(async function (field) {
-					if (field.reactor.channel &&
-						field.reactor.message &&
-						!guild.channels.resolve(field.reactor.channel)
-							.messages.cache.has(field.reactor.message)) {
-						await guild.channels.resolve(field.reactor.channel)
-							.messages.fetch(field.reactor.message).catch(console.error);
-					}
-				});
-
-				// Cache all members and roles
-				guild.members.fetch()
-				.then(members => console.log(`Fetched ${members.size} roles.`))
-				.catch(console.error);
-				guild.roles.fetch()
-				.then(roles => console.log(`Fetched ${roles.size} roles.`))
-				.catch(console.error);
-			})
-		.catch(console.error);
-		reactDB.get(guild.id)
-			.then(async function (manager) {
-				if (!manager)
-					return; // User has no reactor database setup
-
-				// Cache all general react-role messages
-				manager.reactors.forEach(async function (reactor) {
-					if (reactor.channel &&
-						reactor.message &&
-						!guild.channels.resolve(reactor.channel)
-							.messages.cache.has(reactor.message)) {
-						await guild.channels.resolve(reactor.channel)
-							.messages.fetch(reactor.message);
-					}
-				})
-			})
-		.catch(console.error);
-		console.log("Done caching I guess");
-	});
+	// Cache react messages.
+	try {
+		const reactManagers = (await Promise.all(
+			client.guilds.cache.map(guild =>
+				react.get(guild.id).then(manager => ({ guild, manager }))
+			)
+		)).filter(({ manager }) => manager);
+		Promise.all(reactManagers.map(
+			({ guild, manager }) => manager.reactors.map(reactor => (reactor.channel && reactor.message && !guild.channels.resolve(reactor.channel).messages.cache.has(reactor.message)) ? guild.channels.resolve(reactor.channel).messages.fetch(reactor.message) : null).filter(promise => promise)
+		)).then(console.log('Cached all react messages.'));
+	}
+	catch (err) {
+		console.error(err);
+	}
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
-	if (reaction.partial) {
-		try { await reaction.fetch() }
-		catch (error) { return console.error('Error occured while fetching message: ', error) }
-	}
 	// Check if message from bot
-	if (user.bot) return;
-
-	// Ignore reactions to messages not sent by the bot.
-	if (reaction.message.author.id != client.user.id)
+	if (user.bot)
 		return;
 
-	// Now check if message is a standard react-role message
-	const reactDB = settings.get('react');
-	const std_manager = await reactDB.get(reaction.message.guild.id);
-	if (std_manager) {
-		// Get this message's reactor data
-		const reactor = std_manager.reactors.find(reactor => reactor.message === reaction.message.id);
-
-		// Make sure this is a standard react-role message
-		if (reactor) {
-			const role = reactor.roles.find(role => role.emoji === reaction.emoji.toString());
-			if (!role)
-				return; // This emoji is not being used for any of the roles (probably added by a user)
-
-			// Return so we don't bother checking for a field/class react-role message reaction
-			return reaction.message.guild.members.fetch(user)
-				.then(member => {
-					reaction.message.guild.roles.fetch(role.id)
-					.then(role_obj => member.roles.add(role_obj, 'User reacted to role embed.').then().catch(console.error))
-					.catch(console.error);
-				})
-			.catch(console.error);
+	if (reaction.partial) {
+		try {
+			await reaction.fetch()
+		}
+		catch (error) {
+			console.error('Error occured while fetching message: ', error)
+			return
 		}
 	}
 
+	// Ignore reactions to messages not sent by the bot.
+	if (reaction.message.author.id !== client.user.id)
+		return;
+
+	// Now check if message is a standard react-role message
+	react.get(reaction.message.guild.id)
+	.then(async manager => {
+		if (!manager)
+				return;
+
+		// Get this message's reactor data
+		const reactor = manager.reactors.find(searchReactor => searchReactor.message === reaction.message.id);
+		if (!reactor)
+				return;
+
+		// Make sure this is a standard react-role message
+		const roleInfo = reactor.roles.find(searchRole => searchRole.emoji === reaction.emoji.toString());
+		if (!roleInfo)
+			return; // This emoji is not being used for any of the roles (probably added by a user)
+
+		// Return so we don't bother checking for a field/class react-role message reaction
+		const member = await reaction.message.guild.members.fetch(user);
+		const role = await reaction.message.guild.roles.fetch(roleInfo.id);
+		await member.roles.add(role, 'User reacted to role embed.');
+	})
+	.catch(console.error);
+
 	// Now check if message has field associated with it (reaction role message)
-	const guildFields = settings.get('categories');
-	guildFields.get(reaction.message.guild.id)
-		.then(manager => {
-			if (!manager)
-				return; // Guild has no managed fields
+	categories.get(reaction.message.guild.id)
+	.then(async manager => {
+		if (!manager)
+			return;
 
-			// Check if message was for fields or classes.
-			const type = reaction.message.id === manager.reactor.message ? 'field' : 'class';
+		// Check if message was for fields or classes.
+		const type = reaction.message.id === manager.reactor.message ? 'field' : 'class';
 
-			const field = type === 'class' ? manager.fields.find(f => f.reactor.message === reaction.message.id) : null;
-			if (field === undefined)
-				console.log(`${user} added a reaction, and this caused 'field' to be undefined. Happened in ${reaction.message.channel.name}`);
+		const field = type === 'class' ? manager.fields.find(searchField => searchField.reactor.message === reaction.message.id) : null;
+		if (typeof field === "undefined")
+			console.error(`${user} added a reaction, and this caused 'field' to be undefined. Happened in ${reaction.message.channel.name}`);
 
-			const thing = type === 'field'
-				? manager.fields.find(f => f.emoji === reaction.emoji.toString())
-				: field.classes.find(c => c.emoji === reaction.emoji.toString());
-			if (!thing)
-				return; // Reacted with emoji not in list
+		const thing = type === 'field'
+			? manager.fields.find(searchField => searchField.emoji === reaction.emoji.toString())
+			: field.classes.find(searchClass => searchClass.emoji === reaction.emoji.toString());
+		if (!thing)
+			return; // Reacted with emoji not in list
 
-			// If this reaction message is for a class, then make sure the user has the proper field role as well.
-			if (type === 'class') {
-				const fieldRole = reaction.message.guild.roles.cache.find(role => role.id === field.id);
-				const member = reaction.message.guild.members.cache.find(member => member.user === user);
+		// If this reaction message is for a class, then make sure the user has the proper field role as well.
+		if (type === 'class') {
+			const fieldRole = reaction.message.guild.roles.cache.find(searchRole => searchRole.id === field.id);
+			const member = reaction.message.guild.members.cache.find(searchMember => searchMember.user === user);
 
-				if (!member.roles.cache.has(fieldRole.id)) {
-					reaction.users.remove(member.user);
-					return member.send(`Sorry, you need the ${fieldRole.name} role to get this role.`);
-				}
+			if (!member.roles.cache.has(fieldRole.id)) {
+				reaction.users.remove(member.user);
+				member.send(`Sorry, you need the ${fieldRole.name} role to get this role.`);
+				return;
 			}
+		}
 
-			reaction.message.guild.members.fetch(user)
-				.then(member => {
-					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
-					.then(role => member.roles.add(role, 'User reacted to role embed.').then().catch(console.error))
-					.catch(console.error);
-				})
-			.catch(console.error)
-		})
+		const member = await reaction.message.guild.members.fetch(user);
+		const role = await reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role);
+		await member.roles.add(role, 'User reacted to role embed.').then().catch(console.error);
+	})
 	.catch(console.error);
 });
 
 client.on('messageReactionRemove', async (reaction, user) => {
-	if (reaction.partial) {
-		try { await reaction.fetch() }
-		catch (error) { return console.error('Error occured while fetching message: ', error) }
-	}
 	// Check if message from bot
-	if (user.bot) return;
+	if (user.bot)
+		return;
 
-	// Now check if message is a standard react-role message
-	const reactDB = settings.get('react');
-	const std_manager = await reactDB.get(reaction.message.guild.id);
-	if (std_manager) {
-		// Get this message's reactor data
-		const reactor = std_manager.reactors.find(reactor => reactor.message === reaction.message.id);
-
-		// Make sure this is a standard react-role message
-		if (reactor) {
-			const role = reactor.roles.find(role => role.emoji === reaction.emoji.toString());
-			if (!role)
-				return; // This emoji is not being used for any of the roles (probably added by a user)
-
-			// Return so we don't bother checking for a field/class react-role message reaction
-			return reaction.message.guild.members.fetch(user)
-				.then(member => {
-					reaction.message.guild.roles.fetch(role.id)
-					.then(role_obj => member.roles.remove(role_obj, 'User reacted to role embed.').then().catch(console.error))
-					.catch(console.error);
-				})
-			.catch(console.error);
+	if (reaction.partial) {
+		try {
+			await reaction.fetch()
+		}
+		catch (error) {
+			console.error('Error occured while fetching message: ', error)
+			return;
 		}
 	}
 
+	// Now check if message is a standard react-role message
+	react.get(reaction.message.guild.id)
+	.then(async manager => {
+		if (!manager)
+				return;
+
+		// Get this message's reactor data
+		const reactor = manager.reactors.find(searchReactor => searchReactor.message === reaction.message.id);
+
+		// Make sure this is a standard react-role message
+		if (!reactor)
+				return;
+
+		const roleInfo = reactor.roles.find(searchRole => searchRole.emoji === reaction.emoji.toString());
+		if (!roleInfo)
+			return; // This emoji is not being used for any of the roles (probably added by a user)
+
+		// Return so we don't bother checking for a field/class react-role message reaction
+		const member = await reaction.message.guild.members.fetch(user);
+		const role = await reaction.message.guild.roles.fetch(roleInfo.id);
+		await member.roles.remove(role, 'User reacted to role embed.');
+	})
+	.catch(console.error);
+
 	// Now check if message has field associated with it (reaction role message)
-	const guildFields = settings.get('categories');
-	guildFields.get(reaction.message.guild.id)
-		.then(manager => {
-			if (!manager)
-				return; // Guild has no managed fields
+	categories.get(reaction.message.guild.id)
+	.then(async manager => {
+		if (!manager)
+			return;
 
-			// Check if message was for fields or classes.
-			const type = reaction.message.id === manager.reactor.message ? 'field' : 'class';
+		// Check if message was for fields or classes.
+		const type = reaction.message.id === manager.reactor.message ? 'field' : 'class';
 
-			const thing = type === 'field'
-				? manager.fields.find(f => f.emoji === reaction.emoji.toString())
-				: manager.fields.find(f => f.reactor.message === reaction.message.id).classes.find(c => c.emoji === reaction.emoji.toString());
-			if (!thing)
-				return; // Reacted with emoji not in list
+		const thing = type === 'field'
+			? manager.fields.find(searchField => searchField.emoji === reaction.emoji.toString())
+			: manager.fields.find(searchField => searchField.reactor.message === reaction.message.id).classes.find(searchClass => searchClass.emoji === reaction.emoji.toString());
+		if (!thing)
+			return; // Reacted with emoji not in list
 
-			reaction.message.guild.members.fetch(user)
-				.then(member => {
-					reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role)
-					.then(role => member.roles.remove(role, 'User reacted to role embed.').then().catch(console.error))
-					.catch(console.error);
-					// Remove class roles if field role removed
-					if (type === 'field') {
-						// Remove reactions to class react-role message
-						reaction.message.guild.channels.resolve(thing.reactor.channel)
-						.messages.resolve(thing.reactor.message)
-							.reactions.cache.forEach(class_reaction => class_reaction.users.remove(member)); // Is this actually any different than before? Might be a waste of code...
-					}
-				})
-			.catch(console.error)
-		})
+		const member = await reaction.message.guild.members.fetch(user);
+		const role = await reaction.message.guild.roles.fetch(type === 'field' ? thing.id : thing.role);
+		member.roles.remove(role, 'User reacted to role embed.');
+		// If this is a field role reaction being removed, then its corresponding class reactions ought to be removed as well.
+		if (type === 'field')
+			reaction.message.guild.channels.resolve(thing.reactor.channel).messages.resolve(thing.reactor.message).reactions.cache.forEach(classReaction => classReaction.users.remove(member));
+	})
 	.catch(console.error);
 });
+
+const DEFAULT_COOLDOWN = 0;
+const MS_IN_S = 1_000;
+const DESIRED_TIME_DECIMALS = 1;
 
 // Handle slash commands
 client.on('interactionCreate', async interaction => {
@@ -281,144 +262,43 @@ client.on('interactionCreate', async interaction => {
 		return;
 
 	const command = client.commands.get(interaction.commandName);
-
 	if (!command)
 		return;
 
-	if (command.guildOnly && interaction.channel.type === 'DM')
-		return await interaction.reply('This command cannot be used in a DM.');
-
-	if (!cooldowns.has(command.data.name)) {
-		cooldowns.set(command.data.name, new Collection());
+	if (command.guildOnly && interaction.channel.type === 'DM') {
+		interaction.reply('This command cannot be used in a DM.');
+		return;
 	}
+
+	// Cooldown logic.
+	if (!cooldowns.has(command.data.name))
+		cooldowns.set(command.data.name, new Collection());
 
 	const now = Date.now();
 	const timestamps = cooldowns.get(command.data.name);
-	const cooldownAmount = (command.cooldown || 0) * 1000;
+	const cooldownAmount = (command.cooldown || DEFAULT_COOLDOWN) * MS_IN_S;
 
 	if (timestamps.has(interaction.user.id)) {
 		const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
 
 		if (interaction.channel.type !== 'DM' && !interaction.member.permissions.any(permWhitelist)) {
 			if (now < expirationTime) {
-				const timeLeft = (expirationTime - now) / 1000;
-				return await interaction.reply(`please wait ${timeLeft.toFixed(1)} more second(s) before reusing the ${command.data.name} command.`);
+				const timeLeft = (expirationTime - now) / MS_IN_S;
+				await interaction.reply(`please wait ${timeLeft.toFixed(DESIRED_TIME_DECIMALS)} more second(s) before reusing the ${command.data.name} command.`);
+				return;
 			}
 		}
 	}
 
 	timestamps.set(interaction.user.id, now);
-	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
 	setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
 
-	try {
-		await command.execute(interaction);
-	}
-	catch (error) {
-		console.error(error);
-		await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
-	}
+	// Command execution.
+	await command.execute(interaction).catch(err => {
+		console.error(err);
+		interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
+	});
 });
-
-// Handle messages from users (requires channel read permission)
-/*client.on('messageCreate', message => {
-	if (!message.content.startsWith(prefix) || message.author.bot) return; // checks for prefix
-
-	const args = message.content.slice(prefix.length).trim().split(/ +/); // looks for arguments and assigns them
-	const commandName = args.shift().toLowerCase(); // takes command and makes it lowercase/assigns it to variable
-
-	// Handle help
-	if (commandName === 'help') {
-		if (args.length) {
-			const cmdQuery = client.commands.get(args.shift().toLowerCase());
-			if (!cmdQuery) return message.channel.send(`Command does not exist!`);
-
-			message.channel.send(`${cmdQuery.name} - ${cmdQuery.description}\nUsage:`);
-			return message.channel.send(`\`\`\`${cmdQuery.help(prefix)}\`\`\`\nNeed more help? Visit the wiki page for this command: <https://gitlab.com/Magicrafter13/stembot/-/wikis/Commands/${cmdQuery.name}>`);
-		}
-		else {
-			const cmdList = (message.channel.type === 'dm' ? client.commands.filter(command => !command.guildOnly) : client.commands).map(command => `${command.name} - ${command.description}`);
-			return message.channel.send({
-				content: `These are the available commands, say \`${prefix}help <commandName>\` to see help for that command:\n\`\`\`\n${cmdList.join('\n')}\n\`\`\``,
-				embeds: [
-					{
-						hexColor: '#800028',
-						author: {
-							name: 'Clark Stembot',
-							iconURL:  'https://www.clackamas.edu/images/default-source/logos/nwac/clark_college_300x300.png',
-							url:  'https://gitlab.com/Magicrafter13/stembot'
-						},
-						fields: [
-							{
-								name: 'Need More Info?',
-								value: 'Check out the documentation on the [Wiki](https://gitlab.com/Magicrafter13/stembot/-/wikis/home)!'
-							},
-							{
-								name: 'Found a Bug? Have a New Feature Idea?',
-								value: 'Submit reports/ideas on [the issues page](https://gitlab.com/Magicrafter13/stembot/-/issues).'
-							}
-						],
-						footer: {
-							text: `Clark Stembot - Version ${version_short}`
-						},
-						timestamp: Date.now(),
-						type: 'rich'
-					}
-				]
-			});
-		}
-	}
-
-	// Handle normal commands
-	// Recommend the cooldown code is moved inside the try-catch area, just to be safe
-	if (!client.commands.has(commandName)) return;
-
-	const command = client.commands.get(commandName);
-
-	if (!command) return; // No command called 'commandName' exists
-
-	if (command.guildOnly && message.channel.type === 'dm')
-		return message.reply('This command cannot be used in a DM.');*/
-
-	/*
-	 * May not actually go this route, as I plan to make some more complex commands, and I feel it may be
-	 * easier to handle the usage output from the command file. At the very least, just have the execute
-	 * function return different values (error codes), and then we can call upon command.usage based on
-	 * what execute returns.
-	 */
-	/*if (args.length < command.argsMin || (command.argsMax !== -1 && args.length > command.argsMax))
-		return message.channel.send(`Invalid number of arguments, see \`${prefix}help ${command.name}\`.`);
-
-	if (!cooldowns.has(command.name)) {
-		cooldowns.set(command.name, new Collection());
-	}
-
-	const now = Date.now();
-	const timestamps = cooldowns.get(command.name);
-	const cooldownAmount = (command.cooldown || 0) * 1000;
-
-	if (timestamps.has(message.author.id)) {
-		const expirationTime = timestamps.get(message.author.id) + cooldownAmount;
-
-		if (message.channel.type !== 'dm' && !message.member.permissions.any(permWhitelist)) {
-			if (now < expirationTime) {
-				const timeLeft = (expirationTime - now) / 1000;
-				return message.reply(`please wait ${timeLeft.toFixed(1)} more second(s) before reusing the ${command.name} command.`);
-			}
-		}
-	}
-
-	timestamps.set(message.author.id, now);
-	// TODO: Client#setTImeout has been removed, need to find new way to implement command cooldown system, or abandon it!
-	setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
-
-	try {
-		command.old_execute(message, args, settings); // attempts to execute command
-	} catch (error) {
-		console.error(error);
-		message.reply('there was an error trying to execute that command!'); // error message for user
-	}
-});*/
 
 // login with token
 client.login(process.env.DISCORD_TOKEN);

@@ -1,7 +1,7 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { PermissionFlagsBits } = require('discord.js');
+import { PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from '@discordjs/builders';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('botman')
 		.setDescription('Manage Bot Roles.')
@@ -30,48 +30,47 @@ module.exports = {
 	async execute(interaction) {
 		// Check if user has required permissions.
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles, { checkAdmin: true }))
-			return await interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', ephemeral: true });
+			return interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', ephemeral: true });
 
-		const botRoleDB = interaction.client.settings.get('botRoles');
-		let botRoles = await botRoleDB.get(interaction.guildId)
-			.then(botRoles => botRoles === undefined ? null : botRoles)
-			.catch(error => console.error);
-		if (botRoles === undefined)
-			return await interaction.reply({ content: "There was an error reading the database!", ephemeral: true });
+		const botRoleDB = await interaction.client.settings.get('botRoles');
+		let botRoles = await botRoleDB.get(interaction.guildId);
+		if (typeof botRoles === "undefined")
+			return interaction.reply({ content: "There was an error reading the database!", ephemeral: true });
 
 		// If no key/value exists for this guild, create one
 		if (botRoles === null)
 			botRoles = [];
 
-		switch (interaction.options.getSubcommand()) {
+		const subcommand = interaction.options.getSubcommand();
+		switch (subcommand) {
 			case 'list':
-				return await interaction.reply(`Current Bot Roles List: [ ${botRoles.map(id => interaction.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`)
+				return interaction.reply(`Current Bot Roles List: [ ${botRoles.map(id => interaction.guild.roles.cache.find(role => role.id === id).toString()).join(', ')} ]`)
 			case 'clear':
-				await interaction.reply('Cleared bot role list.');
-				botRoleDB.set(interaction.guildId, [])
-				.then()
-					.catch(error => {
-						console.error(error);
-						interaction.editReply("An error occured while clearing the bot role list. Database not updated!");
-					});
-				return;
+				return botRoleDB.set(interaction.guildId, [])
+				.then(interaction.reply('Cleared bot role list.'))
+				.catch(error => {
+					console.error(error);
+					interaction.editReply("An error occured while clearing the bot role list. Database not updated!");
+				});
 			case 'add': {
 				const role = interaction.options.getRole("role", true);
 				if (interaction.guild.members.me.roles.highest.comparePositionTo(role) <= 0)
-					return await interaction.reply(`I cannot manage this role! I can only manage roles below ${interaction.guild.members.me.roles.highest}.`);
+					return interaction.reply(`I cannot manage this role! I can only manage roles below ${interaction.guild.members.me.roles.highest}.`);
 				botRoles.push(role.id);
-				botRoleDB.set(interaction.guildId, botRoles);
-				return await interaction.reply(`Added ${role} to the bot role list.`);
+				return botRoleDB.set(interaction.guildId, botRoles)
+				.then(interaction.reply(`Added ${role} to the bot role list.`));
 			}
 			case 'remove': {
 				if (!botRoles.length)
-					return await interaction.reply({ content: 'Bot role list is empty!', ephemeral: true });
+					return interaction.reply({ content: 'Bot role list is empty!', ephemeral: true });
 
 				const role = interaction.options.getRole("role", true);
 				botRoles.splice(botRoles.indexOf(role.id), 1);
-				botRoleDB.set(interaction.guildId, botRoles);
-				return await interaction.reply(`Removed ${role.toString()} from the bot role list.`)
+				return botRoleDB.set(interaction.guildId, botRoles)
+				.then(interaction.reply(`Removed ${role.toString()} from the bot role list.`));
 			}
 		}
+
+		throw new TypeError(`${subcommand} is not a valid subcommand!`);
 	},
 };

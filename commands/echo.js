@@ -1,6 +1,6 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
+import { SlashCommandBuilder } from '@discordjs/builders';
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('echo')
 		.setDescription('Copies you!')
@@ -10,7 +10,7 @@ module.exports = {
 			.setRequired(true)),
 	guildOnly: false,
 	cooldown: 5,
-	async execute(interaction) {
-		await interaction.reply(interaction.options.get("text", true).value);
+	execute(interaction) {
+		return interaction.reply(interaction.options.get("text", true).value);
 	},
 };

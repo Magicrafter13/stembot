@@ -1,16 +1,17 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
+import packageData from "../package.json" with { type: "json" };
+import { SlashCommandBuilder } from '@discordjs/builders';
 
-const { version } = require('../package.json');
-const version_short = version.replace(/\.\d+$/, '');
+const { version } = packageData;
+const versionShort = version.replace(/\.\d+$/u, '');
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('help')
 		.setDescription('Additional help information.'),
 	guildOnly: false,
 	cooldown: 0,
-	async execute(interaction) {
-		await interaction.reply({
+	execute(interaction) {
+		return interaction.reply({
 			//content: `Pong! This message had a latency of ${Date.now() - interaction.createdTimestamp}`,
 			embeds: [
 				{
@@ -31,7 +32,7 @@ module.exports = {
 						}
 					],
 					footer: {
-						text: `Clark Stembot - Version ${version_short}`
+						text: `Clark Stembot - Version ${versionShort}`
 					},
 					timestamp: (new Date(Date.now())).toISOString(),
 					type: 'rich'

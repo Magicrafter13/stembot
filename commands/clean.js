@@ -1,29 +1,29 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { PermissionFlagsBits } = require('discord.js');
+import { PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from '@discordjs/builders';
 
 function purgeRoles(interaction, masterID, subIDs) {
 	console.log(`master: ${masterID}\nsub: ${subIDs}`);
-	const roles = interaction.guild.roles;
-	roles.fetch(masterID)
-		.then(masterRole => {
-			subIDs.forEach(id => {
-				roles.fetch(id)
-					.then(role => {
-						role.members.each(member => {
-							if (!member.roles.cache.has(masterID)) {
-								interaction.followUp(`Removing ${role.name} from ${member.displayName}.`);
-								console.log(`Removing ${role.name} from ${member.displayName}.`);
-								member.roles.remove(id, `${interaction.user.username} requested role clean. User did not have ${masterRole.name}.`);
-							}
-						});
-					})
-				.catch(console.error);
-			})
-		})
+	const { roles } = interaction.guild;
+	return roles.fetch(masterID)
+	.then(masterRole => Promise.all([
+		subIDs.map(id =>
+			roles.fetch(id)
+			.then(role =>
+				role.members
+				.filter(member => !member.roles.cache.has(masterID))
+				.map(member => [
+					interaction.followUp(`Removing ${role.name} from ${member.displayName}.`),
+					member.roles.remove(id, `${interaction.user.username} requested role clean. User did not have ${masterRole.name}.`),
+				])
+				.flat()
+			)
+			.catch(console.error)
+		).flat()
+	]))
 	.catch(console.error);
 }
 
-module.exports = {
+export default {
 	data: new SlashCommandBuilder()
 		.setName('clean')
 		.setDescription('Remove (clean) Roles.')
@@ -37,7 +37,7 @@ module.exports = {
 	async execute(interaction) {
 		// Check for authorization
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles))
-			return await interaction.reply({ content: 'You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES', ephemeral: true });
+			return interaction.reply({ content: 'You do not have adequate permissions to run this command.\nRequires: MANAGE_ROLES', ephemeral: true });
 
 		// Clean bot-only role from users
 		if (interaction.options.getInteger("bot", false)) {
@@ -45,44 +45,41 @@ module.exports = {
 
 			const botRoleDB = interaction.client.settings.get('botRoles');
 			let botRoleIDs = await botRoleDB.get(interaction.guildId)
-			.then(botRoleIDs => botRoleIDs === undefined ? null : botRoleIDs)
+			.then(data => typeof data === "undefined" ? null : data)
 			.catch(console.error);
-			if (botRoleIDs === undefined)
-				return await interaction.editReply("There was an error reading the database!");
+			if (typeof botRoleIDs === "undefined")
+				return interaction.editReply("There was an error reading the database!");
 
 			if (botRoleIDs === null)
 				botRoleIDs = [];
 
-			if (botRoleIDs.length) {
-				const botRoles = botRoleIDs.map(id => interaction.guild.roles.cache.find(role => role.id === id));
-				botRoles.forEach(role => {
-					console.log(`role ${role}`)
-					role.members.each(member => {
-						console.log(`member ${member}`)
-						if (!member.user.bot) {
-							member.roles.remove(role, `${interaction.user.username} requested bot role clean, ${role.name} is in the bot role list.`);
-							interaction.followUp(`Removed ${role} from ${member.displayName}.`);
-						}
-					});
-				});
-				return await interaction.editReply("Removed bot roles from users.");
-			}
-			return await interaction.editReply('Bot Role list is empty, add roles to it with \`/botman add\`.');
+			if (!botRoleIDs.length)
+				return await interaction.editReply('Bot Role list is empty, add roles to it with `/botman add`.');
+
+			const botRoles = botRoleIDs.map(id => interaction.guild.roles.cache.find(role => role.id === id));
+			await Promise.all(botRoles.map(role =>
+				role.members.filter(member => !member.user.bot).map(member =>
+					member.roles.remove(role, `${interaction.user.username} requested bot role clean, ${role.name} is in the bot role list.`)
+					.then(interaction.followUp(`Removed ${role} from ${member.displayName}.`))
+				)
+			));
+			return interaction.editReply("Removed bot roles from users.");
 		}
 
 		await interaction.reply('Cleaning user roles...');
 
-		const catDB = interaction.client.settings.get('categories');
-		let categories = await catDB.get(interaction.guildId)
-		.then(categories => categories === undefined ? null : categories)
+		const catDB = await interaction.client.settings.get('categories');
+		const categories = await catDB.get(interaction.guildId)
+		.then(data => typeof data === "undefined" ? null : data)
 		.catch(console.error);
-		if (catDB === undefined)
-			return await interaction.editReply("There was an error reading the database!");
+		if (typeof catDB === "undefined")
+			return interaction.editReply("There was an error reading the database!");
 
 		if (catDB === null)
-			return await interaction.editReply(`No field information exists, set fields with \`/catman\`.`);
+			return interaction.editReply(`No field information exists, set fields with \`/catman\`.`);
 
-		categories.fields.forEach(field => purgeRoles(interaction, field.id, field.classes.map(class_data => class_data.role)));
-		return await interaction.editReply("Cleaned user roles.");
+		return Promise.all(categories.fields.map(field =>
+			purgeRoles(interaction, field.id, field.classes.map(classData => classData.role))
+		)).then(interaction.editReply("Cleaned user roles."));
 	},
 };

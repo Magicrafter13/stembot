@@ -2,7 +2,7 @@
   "name": "stembot",
   "version": "6.1.0",
   "description": "STEM Bot",
-  "main": "index.mjs",
+  "main": "index.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
