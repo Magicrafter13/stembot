@@ -4,35 +4,34 @@ import { SlashCommandBuilder } from '@discordjs/builders';
 
 const emojiTest = emojiRegex();
 
-function setEmoji(interaction, reactor, role) {
-	const emoji = interaction.options.getString("emoji", true);
-
-	// Check if emoji string is valid
-	const emojiObject = parseEmoji(emoji);
-	if (!emojiObject.id && !(emojiTest.test(emojiObject.name) && emojiObject.name.match(emojiTest)[0] === emojiObject.name))
+// Check if emoji string is valid - returns the input if it is, otherwise it returns null.
+function emojiIsValid(string) {
+	const emoji = parseEmoji(string);
+	if (!emoji.id && !(emojiTest.test(emoji.name) && emoji.name.match(emojiTest)[0] === emoji.name))
 		return null;
+	return string;
+}
 
+function setEmoji(interaction, reactor, roleInfo, emoji) {
 	// Check if another role already uses this emoji
-	if (reactor.roles.find(reactorRole => reactorRole.emoji === emoji)) {
-		interaction.reply(`${emoji} is already being used by another role!`);
-		return emojiObject;
-	}
-
-	// Update react-role message if one exists
-	if (reactor.message && reactor.channel) {
-		// Remove old emoji
-		interaction.guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
-		.then(message => {
-			const oldReaction = message.reactions.cache.find(reaction => reaction.emoji.toString() === role.emoji);
-			if (oldReaction)
-				oldReaction.remove();
-		})
-		.catch(console.error);
-	}
+	if (reactor.roles.some(reactorRole => reactorRole.emoji === emoji))
+		return { success: false, reason: `${emoji} is already being used by another role!`, update: null };
 
 	// Update the role data
-	role.emoji = emoji;
-	return emojiObject;
+	const oldEmoji = roleInfo.emoji;
+	roleInfo.emoji = emoji;
+
+	return { success: true, reason: '', update: reactor.message && reactor.channel
+		// Remove old emoji
+		? interaction.guild.channels.fetch(reactor.channel)
+			.then(channel => channel.messages.fetch(reactor.message))
+			.then(message => message.reactions.cache.find(reaction => reaction.emoji.toString() === oldEmoji)?.remove())
+			.catch(error => {
+				console.error(error);
+				interaction.channel.send({ content: 'Failed to remove reactions of the previous emoji!', flags: MessageFlags.Ephemeral });
+			})
+		: null
+	};
 }
 
 function editReactMessage(guild, reactor) {
@@ -50,9 +49,9 @@ function editReactMessage(guild, reactor) {
 	.setTimestamp()
 	.setFooter({ text: 'Report bugs on our GitLab repository.' });
 
-	const channel = guild.channels.resolve(reactor.channel)
+	const channel = guild.channels.resolve(reactor.channel);
 	return channel.messages.edit(reactor.message, { embeds: [ embed ] })
-	.then(reactor.roles.filter(role => role.emoji).forEach(role => channel.messages.react(reactor.message, role.emoji)));
+	.then(() => reactor.roles.filter(role => role.emoji).map(role => channel.messages.react(reactor.message, role.emoji)));
 }
 
 function deleteReactMessage(guild, reactor) {
@@ -61,105 +60,95 @@ function deleteReactMessage(guild, reactor) {
 	return guild.channels.resolve(reactor.channel).messages.fetch(reactor.message).then(message => message.delete());
 }
 
-function addRole(interaction, reactor) {
-	const newRole = interaction.options.getRole("role", true);
-
+function addRole(interaction, reactor, role, emoji) {
 	// Make sure it's not already in the list...
-	if (reactor.roles.find(role => role.id === newRole.id))
-		return interaction.reply(`${newRole} is already part of this react-role message!`);
+	if (reactor.roles.some(searchRole => searchRole.id === role.id))
+		return { success: false, reason: `${role} is already part of this react-role message!`, update: null }
 
 	// Create the new role object
-	const newObj = { id: newRole.id, emoji: null };
+	const roleInfo = { id: role.id, emoji: null };
 
-	// Set the emoji
-	if (setEmoji(interaction, reactor, newObj) === null)
-		return interaction.reply(`\`${interaction.options.getString('emoji', true)}\` cannot be resolved to a valid emoji!`)
+	// Check if emoji already in use, otherwise set it
+	const setEmojiResult = setEmoji(interaction, reactor, roleInfo, emoji);
+	if (!setEmojiResult.success)
+		return setEmojiResult;
 
-	// Check if emoji was successfully added, or if it was already in use
-	if (newObj.emoji) {
-		reactor.roles.push(newObj);
-
-		const promises = [interaction.reply(`${newRole} added to react-role message.`)];
-
-		// Check if a react-role message exists, and update it
-		if (reactor.message && reactor.channel)
-			promises.push(editReactMessage(interaction.guild, reactor))
-
-		return Promise.all(promises);
-	}
-
-	return interaction.reply(`${interaction.options.getString('emoji', true)} is already being used in this react-role message!`);
-}
-
-function removeRole(interaction, reactor) {
-	const oldRole = interaction.options.getRole("role", true);
-
-	// Make sure it's in the list...
-	const checkRole = reactor.roles.find(role => role.id === oldRole.id);
-	if (!checkRole)
-		return interaction.reply(`${oldRole} is not part of this react-role message!`);
-
-	// Delete the role
-	reactor.roles.splice(reactor.roles.indexOf(checkRole), 1);
+	reactor.roles.push(roleInfo);
 
 	// Check if a react-role message exists, and update it
-	if (reactor.message && reactor.channel) {
-		// Remove old emoji
-		interaction.guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
-		.then(msg => msg.reactions.cache.find(reaction => reaction.emoji.toString() === checkRole.emoji).remove())
-		.catch(console.error);
-		editReactMessage(interaction.guild, reactor);
+	return { success: true, reason: '', update: reactor.message && reactor.channel ? editReactMessage(interaction.guild, reactor) : Promise.resolve() };
+}
+
+function removeRole(interaction, reactor, role) {
+	// Make sure it is in the list.
+	const roleInfo = reactor.roles.find(searchRole => searchRole.id === role.id);
+	if (!roleInfo)
+		return { success: false, reason: `${role} is not part of this react-role message!`, update: null };
+
+	// Delete the role
+	reactor.roles.splice(reactor.roles.indexOf(roleInfo), 1);
+
+	// Check if a react-role message exists, and update it
+	return { success: true, reasons: '', update: reactor.message && reactor.channel
+		? interaction.guild.channels.fetch(reactor.channel)
+			.then(channel =>
+				channel.messages.fetch(reactor.message)
+				.then(message => message.reactions.cache.find(reaction => reaction.emoji.toString() === roleInfo.emoji).remove())
+			)
+			.then(() => editReactMessage(interaction.guild, reactor))
+			.catch(console.error)
+		: Promise.resolve()
 	}
-
-	return interaction.reply(`Removed ${oldRole} from react-role message.`);
 }
 
-function changeEmoji(interaction, reactor) {
-	const role = interaction.options.getRole("role", true);
-
-	// Get the reactor
-	const obj = reactor.roles.find(reactorRole => reactorRole.id === role.id);
-	if (!obj)
-		return interaction.reply(`${reactor.name} doesn't have ${role}. Add it with \`/react add-role name:${reactor.name} role:${role} emoji:${interaction.options.getString("emoji", true)}\`!`);
-
-	if (obj.emoji === interaction.options.getString("emoji", true))
-		return interaction.reply(`${reactor.name} already uses ${obj.emoji}.`);
-
+function changeEmoji(interaction, reactor, role, emoji) {
+	// Check if role is part of this react-role manager.
+	const roleInfo = reactor.roles.find(searchRole => searchRole.id === role.id);
+	if (!roleInfo)
+		return { success: false, reason: `${reactor.name} doesn't have ${role}. Add it with:\n> \`/react add-role name:${reactor.name} role:${role} emoji:${emoji}\`!`, update: null };
+	// Check if role already uses this emoji.
+	if (roleInfo.emoji === emoji)
+		return { success: false, reason: `${role} already uses ${roleInfo.emoji}.`, update: null };
 	// Set the emoji
-	if (setEmoji(interaction, reactor, obj) === null)
-		return interaction.reply(`\`${interaction.options.getString('emoji', true)}\` cannot be resolved to a valid emoji!`)
+	const setEmojiResult = setEmoji(interaction, reactor, roleInfo, emoji);
+	if (!setEmojiResult.success)
+		return setEmojiResult;
 
-	if (reactor.channel && reactor.message)
-		editReactMessage(interaction.guild, reactor);
-
-	return interaction.reply(`Changed ${role} to ${obj.emoji}.`);
+	return { success: true, reason: '', update: reactor.channel && reactor.message ? editReactMessage(interaction.guild, reactor) : Promise.resolve() };
 }
 
-function createReactMessage(interaction, reactor) {
+async function createReactMessage(interaction, reactor) {
+	// Ignore if no roles are added.
+	if (!reactor.roles.length)
+		return { success: false, reason: `This reactor is empty, add some roles to it first with:\n> \`/react add-role name:${reactor.name}\``, update: null };
+
+	// Set reactor text (if applicable)
+	const messageText = interaction.options.getString("message", false);
+	if (messageText)
+		reactor.text = messageText;
+
 	const channel = interaction.options.getChannel("channel", true);
 
 	// Delete previous react-role message if one exists
-	deleteReactMessage(interaction.guild, reactor);
+	const deletePromise = deleteReactMessage(interaction.guild, reactor);
 
-	return interaction.reply({ content: 'Generating embed...', flags: MessageFlags.Ephemeral })
-	.then(() => {
-		// Create message.
-		channel.send({ content: '_ _', embeds: [ { title: 'Generating embed...' } ] })
-		.then(message => message
-			? () => {
-				// Save message/channel id in reactor
-				Object.assign(reactor, {
-					message: message.id,
-					channel: channel.id,
-				});
-
-				// Generate embed
-				return editReactMessage(message.guild, reactor)
-				.then(interaction.editReply(`Done! https://discord.com/channels/${interaction.guildId}/${channel.id}/${message.id}`))
-				.catch(console.error);
-			}
-			: interaction.editReply("Failed to send message. Are you sure I have permissions in that channel?"))
+	// Create message.
+	const message = await channel.send({ content: '_ _', embeds: [ { title: 'Generating embed...' } ] }).catch(error => {
+		if (error.message === "Missing Permissions")
+			return null;
+		throw error;
 	});
+	if (!message)
+		return { success: false, reason: `Missing permissions to send messages in ${channel}!`, update: null };
+
+	// Save message/channel id in reactor
+	Object.assign(reactor, {
+		message: message.id,
+		channel: channel.id,
+	});
+
+	// Generate embed
+	return { success: true, reason: '', update: Promise.all([editReactMessage(message.guild, reactor), deletePromise]) };
 }
 
 const newReactorTemplate = {
@@ -265,107 +254,127 @@ export default {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles, { checkAdmin: true }))
 			return interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_ROLES', flags: MessageFlags.Ephemeral });
 
-		const reactDB = interaction.client.settings.get('react');
-		const manager = await reactDB.get(interaction.guildId)
-		.then(data => data ? data : { reactors: [] })
-		.catch(console.error);
-		if (!manager)
-			return interaction.reply({ content: "There was an error reading the database!", flags: MessageFlags.Ephemeral });
+		const reactDB = await interaction.client.settings.get('react');
+		const manager = await reactDB.get(interaction.guildId) ?? { reactors: [] };
 		if (!manager.reactors)
 			manager.reactors = [];
 
-		const name = interaction.options.getSubcommand() === "list" ? null : interaction.options.getString("name", true);
+		// Handle '/react list' first
+		const subcommand = interaction.options.getSubcommand();
+		if (subcommand === 'list')
+			return interaction.reply(`Here are the react-role messages currently in the database:\n${manager.reactors.map(reactor => `\`${reactor.name}\`: ${reactor.channel && reactor.message ? interaction.guild.channels.resolve(reactor.channel).messages.resolve(reactor.message).url : ''}`).join('\n')}`)
+
+		const name = interaction.options.getString("name", true);
+		const role = interaction.options.getRole("role", false);
+		const emoji = interaction.options.getString("emoji", false);
+		// Make sure emoji is valid (if one was passed)
+		if (emoji && !emojiIsValid(emoji))
+			return interaction.reply({ content: `\`${emoji}\` cannot be resolved to a valid emoji!`, flags: MessageFlags.Ephemeral });
 		const reactor = manager.reactors.find(searchReactor => searchReactor.name === name);
 
-		const subcommand = interaction.options.getSubcommand();
-		switch (subcommand) {
-			// Send list of react-role message urls
-			case 'list':
-				return interaction.reply(`Here are the react-role messages currently in the database:\n${manager.reactors.map(printReactor => `${printReactor.name}: ${printReactor.channel && printReactor.message ? interaction.guild.channels.resolve(printReactor.channel).messages.resolve(printReactor.message).url : ''}`).join('\n')}`)
-			case 'new': {
-				if (reactor)
-					return interaction.reply({ content: 'A react-role message with this name already exists!', flags: MessageFlags.Ephemeral });
+		let reply = '';
 
-				const newReactor = newReactorTemplate;
-				newReactor.name = name;
+		// Handle '/react new' next
+		if (subcommand === 'new') {
+			if (reactor)
+				return interaction.reply({ content: 'A react-role message with this name already exists!', flags: MessageFlags.Ephemeral });
 
-				manager.reactors.push(newReactor);
-				reactDB.set(interaction.guildId, manager);
+			manager.reactors.push({ ...newReactorTemplate, name });
+			reply = `Created new react-role data under '${name}'.`;
+		}
+		else {
+			// Make sure 'name' is valid
+			if (!reactor)
+				return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> \`/react new name:${name}\``, flags: MessageFlags.Ephemeral });
 
-				return interaction.reply(`Created new react-role data under '${name}'.`);
+			switch (subcommand) {
+				case 'delete':
+					// Delete react-role message if one exists, then remove from database
+					deleteReactMessage(interaction.guild, reactor)
+					.catch(error => {
+						if (error.message !== "Missing Permissions")
+							throw error;
+						interaction.channel.send({ content: "Missing permissions to delete react-role message!", flags: MessageFlags.Ephemeral });
+					});
+					// Remove from manager
+					manager.reactors.splice(manager.reactors.indexOf(reactor), 1);
+					// Done
+					reply = `Deleted '${name}' react-role data/message.`;
+					break;
+				case 'add-role': {
+					// Try to add role to reactor.
+					const { success, reason, update } = addRole(interaction, reactor, role, emoji);
+					if (!success)
+						return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+					await update.catch(error => {
+						if (error.message !== "Missing Permissions")
+							throw error;
+						interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+					});
+					// Done
+					reply = `Added ${role} to react-role message with emoji ${emoji}!`;
+					break;
+				}
+				case 'remove-role': {
+					// Remove role from reactor.
+					const { success, reason, update } = removeRole(interaction, reactor, role);
+					if (!success)
+						return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+					await update.catch(error => {
+						if (error.message !== "Missing Permissions")
+							throw error;
+						interaction.channel.send({ content: "Missing permissions to edit react-role message, or remove reactions from it!", flags: MessageFlags.Ephemeral });
+					});
+					// Done
+					reply = `Removed ${role} from react-role message.`;
+					break;
+				}
+				case 'change-emoji': {
+					const { success, reason, update } = changeEmoji(interaction, reactor, role, emoji);
+					if (!success)
+						return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+					await update.catch(error => {
+						if (error.message !== "Missing Permissions")
+							throw error;
+						interaction.channel.send({ content: "Missing permissions to edit react-role message, or remove reactions from it!", flags: MessageFlags.Ephemeral });
+					});
+					// Done
+					reply = `Changed ${role} to ${emoji}.`;
+					break;
+				}
+				case 'create-message': {
+					const { success, reason, update } = createReactMessage(interaction, reactor);
+					if (!success)
+						return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+					await update.catch(error => {
+						if (error.message !== "Missing Permissions")
+							throw error;
+						interaction.channel.send({ content: "Missing permissions to delete old react-role message, edit new react-role message, or add reactions to it!", flags: MessageFlags.Ephemeral });
+					});
+					reply = `Message generated! https://discord.com/channels/${interaction.guildId}/${reactor.channel}/${reactor.message}`;
+					break;
+				}
+				case 'set-text':
+					// Make sure there actually *is* a message to edit...
+					if (!reactor.message)
+						return interaction.reply({ content: `You haven't made an embed yet. Create one with:\n> /react create-message \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
+					// Update the reactor
+					reactor.text = interaction.options.getString("message", true);
+					// Update react-role message
+					await editReactMessage(interaction.guild, reactor);
+					reply = 'Text updated.';
+					break;
+				default:
+					throw new TypeError(`${subcommand} is not a valid subcommand! Don't forget to redeploy your slash commands after updating the bot!`);
 			}
-			case 'delete':
-				if (!reactor)
-					return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
-
-				// Remove from manager
-				manager.reactors.splice(manager.reactors.indexOf(reactor), 1);
-				interaction.reply(`Deleted '${name}' react-role data/message.`);
-
-				// Delete react-role message if one exists, then remove from database
-				return deleteReactMessage(interaction.guild, reactor)
-				.then(reactDB.set(interaction.guildId, manager))
-				.catch(error => {
-					interaction.editReply("Failed to delete react-role message, database was not updated!");
-					console.error(error);
-				});
-			case 'add-role':
-				if (!reactor)
-					return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
-
-				// Try to add role to reactor.
-				return addRole(interaction, reactor)
-				.then(reactDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
-			case 'remove-role':
-				if (!reactor)
-					return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
-
-				// Try to remove role from reactor.
-				return removeRole(interaction, reactor)
-				.then(reactDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
-			case 'change-emoji':
-				if (!reactor)
-					return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
-
-				return changeEmoji(interaction, reactor)
-				.then(reactDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
-			case 'create-message': {
-				if (!reactor)
-					return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
-
-				if (!reactor.roles.length)
-					return interaction.reply(`This reactor is empty, add some roles to it first with:\n> /react add-role \`name:\` ${name}`);
-
-				// Update the reactor (if applicable)
-				const message = interaction.options.getString("message", false);
-				if (message)
-					reactor.text = message;
-
-				// Create embed message
-				return createReactMessage(interaction, reactor)
-				.then(reactDB.set(interaction.guildId, manager)) // Update database
-				.catch (console.error);
-			}
-			case 'set-text':
-				if (!reactor)
-					return interaction.reply({ content: `No reactor with the name \`${name}\` exists. Create one with:\n> /react new \`name:\` ${name}`, flags: MessageFlags.Ephemeral });
-
-				// Make sure there actually *is* a message to edit...
-				if (!reactor.message)
-					return interaction.reply(`You haven't made an embed yet. Create one with:\n> /react create-message \`name:\` ${name}`);
-
-				// Update the reactor
-				reactor.text = interaction.options.getString("message", true);
-
-				// Update react-role message
-				return editReactMessage(interaction.guild, reactor)
-				.then(reactDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
 		}
 
-		throw new TypeError(`${subcommand} is not a valid subcommand!`);
+		// Save changes to database
+		return reactDB.set(interaction.guildId, manager)
+		.then(() => interaction.reply(reply))
+		.catch(error => {
+			interaction.channel.send({ content: "Failed to update database, changes were not saved!" });
+			console.error(error);
+		});
 	},
 }

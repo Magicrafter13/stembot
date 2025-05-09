@@ -28,8 +28,8 @@ function setEmoji(interaction, manager, data, emoji) {
 			if (oldReaction)
 				oldReaction.remove();
 		})
-		.catch(err => {
-			console.error(err);
+		.catch(error => {
+			console.error(error);
 			interaction.channel.send({ content: 'Failed to remove reactions of the previous emoji!', flags: MessageFlags.Ephemeral });
 		});
 	}
@@ -73,48 +73,46 @@ function editReactMessage(interaction, manager) {
 
 	const channel = interaction.guild.channels.resolve(manager.reactor.channel);
 	return channel.messages.edit(manager.reactor.message, { content: '', embeds: [ embed ] })
-	.then(Promise.all(
-		(isFieldManager ? manager.fields : manager.classes).filter(info => info.emoji).map(info =>
-			channel.messages.react(manager.reactor.message, info.emoji)
-			.catch(error => {
-				console.log(error);
-				return interaction.followUp({ content: `Could not react with ${info.emoji}, is this a valid emoji?`, flags: MessageFlags.Ephemeral});
-			})
-		)
-	))
-	.catch(console.error);
+	.then((isFieldManager ? manager.fields : manager.classes).filter(role => role.emoji).map(role => channel.messages.react(manager.reactor.message, role.emoji)));
 }
 
 function deleteMessage(guild, reactor) {
-	return guild.channels.resolve(reactor.channel).messages.fetch(reactor.message)
-	.then(message => message.delete())
-	.catch(console.error);
+	if (!reactor.message)
+		return Promise.resolve();
+	return guild.channels.resolve(reactor.channel).messages.fetch(reactor.message).then(message => message.delete());
 }
 
-function addClass(interaction, field) {
+function addClass(interaction, field, classManager) {
+	if (!classManager)
+		return { success: false, reason: `No field information set for ${field}`, update: null };
+	if (!classManager.channel)
+		return { success: false, reason: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, update: null };
+	if (!classManager.prefix)
+		return { success: false, reason: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, update: null };
+
 	// Get class from user
 	const className = interaction.options.getString("name");
 
 	// Make sure class is valid
 	if (field.classes.find(classData => classData.name === className))
-		return interaction.reply({ content: `Field already contains this class.`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: 'Field already contains this class.', update: null };
 
 	// Find matching role
 	const classRole = interaction.guild.roles.cache.find(role => role.name.startsWith(`${field.prefix} ${className}`));
 	if (!classRole)
-		return interaction.reply({ content: `No role found with name \`${field.prefix} ${className}\`, you can create one by using \`create\` instead of \`add\`.`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: `No role found with name \`${field.prefix} ${className}\`, you can create one by using \`create\` instead of \`add\`.`, update: null };
 
 	// Find matching channel
 	const channel = interaction.guild.channels.cache.find(searchChannel => searchChannel.name.startsWith(`${field.prefix}${className}`.toLowerCase()) && searchChannel.isTextBased());
 	if (!channel)
-		return interaction.reply({ content: `No channel found with name \`${field.prefix}${className}\`, you can create one by using \`create:\` instead of \`add:\`.`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: `No channel found with name \`${field.prefix}${className}\`, you can create one by using \`create:\` instead of \`add:\`.`, update: null };
 
 	// Get emoji from user, or null of none specified
 	const emoji = interaction.options.getString("emoji", false);
 
 	// Check if emoji string is valid
 	if (emoji && !emojiIsValid(emoji))
-		return interaction.reply(`\`${emoji}\` cannot be resolved to a valid emoji!`)
+		return { success: false, reason: `\`${emoji}\` cannot be resolved to a valid emoji!`, update: null };
 
 	// Add new class to field
 	field.classes.push({
@@ -125,36 +123,48 @@ function addClass(interaction, field) {
 	});
 
 	// Update embed message
-	if (field.reactor.message && emoji)
-		editReactMessage(interaction, field);
-
-	return interaction.reply(`Added ${classRole.toString()} and ${channel.toString()} to ${interaction.guild.roles.resolve(field.id).toString()} field.${emoji ? ` Emoji: ${emoji}.` : ''}`);
+	return {
+		success: true,
+		reason: `Added ${classRole.toString()} and ${channel.toString()} to ${interaction.guild.roles.resolve(field.id).toString()} field.${emoji ? ` Emoji: ${emoji}.` : ''}`,
+		update: field.reactor.message && emoji ? editReactMessage(interaction, field) : Promise.resolve() };
 }
 
-function removeClass(interaction, field, fieldRole) {
+function removeClass(interaction, classManager, field) {
+	if (!classManager)
+		return { success: false, reason: `No field information set for ${field}`, update: null };
+	if (!classManager.channel)
+		return { success: false, reason: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, update: null };
+	if (!classManager.prefix)
+		return { success: false, reason: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, update: null };
+
 	// Get class from user, then from the field
 	const className = interaction.options.getString("name", true);
-	const oldClass = field.classes.find(classData => classData.name === className);
+	const oldClass = classManager.classes.find(classData => classData.name === className);
 	if (!oldClass)
-		return interaction.reply({ content: `${fieldRole} doesn't contain this class.`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: `${field} doesn't contain this class.`, update: null };
 
 	// Update field
-	field.classes.splice(field.classes.indexOf(oldClass), 1);
-
-	const reply = `Removed \`${className}\` from list of classes.`;
+	classManager.classes.splice(classManager.classes.indexOf(oldClass), 1);
 
 	// Update embed message
-	if (field.reactor.message)
-		return editReactMessage(interaction, field).then(interaction.reply(reply));
-
-	return interaction.reply(reply);
+	return {
+		success: true,
+		reason: `Removed \`${className}\` from list of classes.`,
+		update: classManager.reactor.message ? editReactMessage(interaction, classManager) : Promise.resolve() };
 }
 
-async function createClass(interaction, field) {
+async function createClass(interaction, field, classManager) {
+	if (!classManager)
+		return { success: false, reason: `No field information set for ${field}`, update: null };
+	if (!classManager.channel)
+		return { success: false, reason: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, update: null };
+	if (!classManager.prefix)
+		return { success: false, reason: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, update: null };
+
 	// Get class from user
 	const className = interaction.options.getString("name", true);
-	if (field.classes.find(classData => classData.name === className))
-		return interaction.reply({ content: `${field.toString()} already contains this class.`, flags: MessageFlags.Ephemeral });
+	if (classManager.classes.find(classData => classData.name === className))
+		return { success: false, reason: `${classManager.toString()} already contains this class.`, update: null };
 
 	// Get emoji from user, null if none specified
 	const emoji = interaction.options.getString("emoji", false);
@@ -162,32 +172,44 @@ async function createClass(interaction, field) {
 	if (emoji) {
 		// Check if emoji string is valid
 		if (!emojiIsValid(emoji))
-			return interaction.reply(`\`${emoji}\` cannot be resolved to a valid emoji!`)
+			return { success: false, reason: `\`${emoji}\` cannot be resolved to a valid emoji!`, update: null };
 
 		// Check if emoji is already in use
-		if (field.classes.some(classData => classData.emoji === emoji))
-			return interaction.reply({ content: 'This field already has a class with that emoji!', flags: MessageFlags.Ephemeral });
+		if (classManager.classes.some(classData => classData.emoji === emoji))
+			return { success: false, reason: 'This field already has a class with that emoji!', update: null };
 	}
 
 	interaction.reply("Creating role.");
 
 	// Create class role
 	const classRole = await interaction.guild.roles.create({
-		name: `${field.prefix} ${className}`,
-		position: field.classes.length ? interaction.guild.roles.resolve(field.classes[field.classes.length - 1].role).position : null,
-		reason: `${interaction.user.username} added class ${className} to ${field.prefix}.`,
+		name: `${classManager.prefix} ${className}`,
+		position: classManager.classes.length ? interaction.guild.roles.resolve(classManager.classes[classManager.classes.length - 1].role).position : null,
+		reason: `${interaction.user.username} added class ${className} to ${classManager.prefix}.`,
+	})
+	.catch(error => {
+		if (error.message !== "Missing Permissions")
+			throw error;
 	});
+	if (!classRole)
+		return { success: false, reason: 'Missing permissions to create role!', update: null };
 
 	// Create class channel
-	const classChannel = await interaction.guild.channels.create(`${field.prefix}${className}`, {
+	const classChannel = await interaction.guild.channels.create(`${classManager.prefix}${className}`, {
 		type: 'GUILD_TEXT',
-		parent: interaction.guild.channels.resolve(field.channel),
-		reason: `${interaction.user.username} added class ${className} to ${field.prefix}.`,
-		position: field.classes.length ? interaction.guild.channels.resolve(field.classes[field.classes.length - 1].channel).position + 1 : null,
+		parent: interaction.guild.channels.resolve(classManager.channel),
+		reason: `${interaction.user.username} added class ${className} to ${classManager.prefix}.`,
+		position: classManager.classes.length ? interaction.guild.channels.resolve(classManager.classes[classManager.classes.length - 1].channel).position + 1 : null,
+	})
+	.catch(error => {
+		if (error.message !== "Missing Permissions")
+			throw error;
 	});
+	if (!classChannel)
+		return { success: false, reason: 'Missing permissions to create channel!', update: classRole.delete() };
 
 	// Add class to field
-	field.classes.push({
+	classManager.classes.push({
 		name: className,
 		role: classRole.id,
 		channel: classChannel.id,
@@ -195,91 +217,129 @@ async function createClass(interaction, field) {
 	});
 
 	// Update embed message
-	if (field.reactor.message && emoji)
-		editReactMessage(interaction, field);
-
-	// Keep user informed
-	return interaction.editReply(`Added ${classRole.toString()} and ${classChannel.toString()} to ${interaction.guild.roles.resolve(field.id).toString()} info.${emoji ? ` Emoji: ${emoji}.` : ''}`);
+	return {
+		success: true,
+		reason: `Added ${classRole.toString()} and ${classChannel.toString()} to ${interaction.guild.roles.resolve(classManager.id).toString()} info.${emoji ? ` Emoji: ${emoji}.` : ''}`,
+		update: classManager.reactor.message && emoji ? editReactMessage(interaction, classManager) : Promise.resolve()
+	};
 }
 
-function deleteClass(interaction, field, fieldRole) {
+function deleteClass(interaction, fieldInfo, field) {
+	if (!fieldInfo)
+		return { success: false, reason: `No field information set for ${field}`, update: null };
+	if (!fieldInfo.channel)
+		return { success: false, reason: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, update: null };
+	if (!fieldInfo.prefix)
+		return { success: false, reason: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, update: null };
+
 	// Get class from user, then from field
 	const className = interaction.options.getString("name", true);
-	const oldClass = field.classes.find(classData => classData.name === className);
+	const oldClass = fieldInfo.classes.find(classData => classData.name === className);
 	if (!oldClass)
-		return interaction.reply({ content: `${fieldRole} doesn't contain this class.`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: `${field} doesn't contain this class.`, update: null };
 
-	return Promise.all([
-		// Remove class from field
-		removeClass(interaction, field, fieldRole),
+	// Remove class from field
+	const removeClassResult = removeClass(interaction, fieldInfo, field);
+	if (!removeClassResult.success)
+		return removeClassResult;
 
-		// Delete role
-		interaction.guild.roles.resolve(oldClass.role).delete(`${interaction.user.username} deleted ${className} from ${field.prefix}.`)
-		.then(interaction.followUp('Role deleted.'))
-		.catch(console.error),
-
-		// Delete channel (except not, because I'm still not sure I want the bot to have such power...)
-		interaction.followUp(`You may now delete ${interaction.guild.channels.resolve(oldClass.channel).toString()}.`),
-	]);
+	return {
+		success: true,
+		reason: `Role deleted, channel now safe to delete: ${interaction.guild.channels.resolve(oldClass.channel).toString()}`,
+		update: Promise.all([
+			removeClassResult.update,
+			// Delete role
+			interaction.guild.roles.resolve(oldClass.role).delete(`${interaction.user.username} deleted ${className} from ${fieldInfo.prefix}.`),
+			// Delete channel (except not, because I'm still not sure I want the bot to have such power...)
+	]) };
 }
 
-function createReactMessage(interaction, data) {
+async function createReactMessage(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length) {
+		return {
+			success: false,
+			reason: classManager
+				? `The class manager is empty, you need to add classes first.\n> \`/catman add field:${field} name:postfix_class_name\``
+				: `The field manager is empty, you need to add fields first.\n> \`/catman set-category field:${field} category:#some_category\``,
+			update: null };
+	}
+
+	const manager = classManager ? classManager : fieldManager;
+
 	const channel = interaction.options.getChannel("channel", true);
 	if (!channel)
-		return interaction.reply({ content: "Channel doesn't exist.", flags: MessageFlags.Ephemeral });
+		return { success: false, reason: "Channel doesn't exist.", flags: MessageFlags.Ephemeral };
 
 	// Delete previous react-role message if one exists
-	if (data.reactor.message)
-		deleteMessage(interaction.guild, data.reactor);
+	const deletePromise = deleteMessage(interaction.guild, manager.reactor);
 
-	return interaction.reply({ content: 'Generating embed...', flags: MessageFlags.Ephemeral })
-	.then(
-		// Create message.
-		channel.send('Please wait while embed is generated...')
-		.then(message => {
-			// Save message/channel id in reactor
-			data.reactor = {
-				message: message.id,
-				channel: channel.id,
-				text: interaction.options.getString("message", false) ? interaction.options.getString("message", false) : data.reactor.text,
-			};
+	const message = await channel.send({ content: '_ _', embeds: [ { title: 'Generating embed...' } ] }).catch(error => {
+		if (error.message !== "Missing Permissions")
+			throw error;
+	});
+	if (!message)
+		return { success: false, reason: `Missing permisssions to send messages in ${channel}!`, update: null };
 
-			// Generate embed
-			return editReactMessage(interaction, data)
-			.then(interaction.editReply(`Done! Here's the new reaction embed: ${message.url}`))
-			.catch(console.error);
-		})
-		.catch(console.error)
-	);
+	// Save message/channel id in reactor
+	manager.reactor = {
+		message: message.id,
+		channel: channel.id,
+		text: interaction.options.getString("message", false) ?? manager.reactor.text,
+	};
+
+	// Generate embed
+	return {
+		success: true,
+		reason: `Message generated! https://discord.com/channels/${interaction.guildId}/${manager.reactor.channel}/${manager.reactor.message}`,
+		update: Promise.all([editReactMessage(interaction, manager), deletePromise]) };
 }
 
-function editReactorText(interaction, manager) {
-	// Get new string from user's command, and update message.
-	manager.reactor.text = interaction.options.getString("message", true);
+function editReactorText(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length)
+		return { success: false, reason: `The ${classManager ? "field" : "manager"} is empty, you need to add ${classManager ? "classes" : "fields"} first.\n> /catman add \`field:\` ${field} \`name:\` ...`, update: null };
 
+	const manager = classManager ? classManager : fieldManager;
+	const message = interaction.options.getString("message", true);
+
+	// Make sure there actually *is* a message to edit...
 	if (!manager.reactor.message)
-		return interaction.reply('No react message to edit! Create one with `/catman create-message`.');
+		return { success: false, reason: `There is no react message to edit! Create one with:\n> \`/catman create-message channel:#some_channel message:${message}${interaction.options.getRole("field", false) ? ` field:${interaction.options.getRole("field", false)}` : ""}\``, update: null };
+
+	// Get new string from user's command, and update message.
+	manager.reactor.text = message;
 
 	// Update embed message
-	return editReactMessage(interaction, manager)
-	.then(interaction.reply('Message text updated.'))
-	.catch(console.error);
+	return {
+		success: true,
+		reason: 'Message text updated.',
+		update: editReactMessage(interaction, manager) };
 }
 
-function swapRoles(interaction, manager) {
+function swapRoles(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length)
+		return { success: false, reason: `The ${classManager ? "field" : "manager"} is empty, you need to add ${classManager ? "classes" : "fields"} first.\n> `, update: null };
+
+	const manager = classManager ? classManager : fieldManager;
+
 	const role1 = interaction.options.getRole("role1", true);
 	const role2 = interaction.options.getRole("role2", true);
 
 	const data1 = manager.fields
-		? manager.fields.find(field => field.id === role1.id)
+		? manager.fields.find(searchField => searchField.id === role1.id)
 		: manager.classes.find(classData => classData.role === role1.id);
 	if (!data1)
-		return interaction.reply({ content: manager.fields ? `${role1} is not a managed field role!` : `${role1} is not a class in this field!`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason:`${role1} is not a managed field role!` , update: null };
 	const data2 = manager.fields
-		? manager.fields.find(field => field.id === role2.id)
+		? manager.fields.find(searchField => searchField.id === role2.id)
 		: manager.classes.find(classData => classData.role === role2.id);
 	if (!data2)
-		return interaction.reply({ content: manager.fields ? `${role2} is not a managed field role!` : `${role2} is not a class in this field!`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason:`${role2} is not a managed field role!` , update: null };
 
 	const arr = manager.fields ? manager.fields : manager.classes;
 	const index1 = arr.indexOf(data1);
@@ -287,38 +347,40 @@ function swapRoles(interaction, manager) {
 	[arr[index1], arr[index2]] = [arr[index2], arr[index1]];
 
 	if (manager.fields)
-		interaction.reply('Swapped fields.');
-	else {
-		const channel1 = interaction.guild.channels.resolve(data1.channel);
-		const channel2 = interaction.guild.channels.resolve(data2.channel);
+		return { success: true, reason: '', update: Promise.resolve() };
 
-		const distance = Math.abs(index2 - index1);
-		const pos1 = channel1.position;
-		const pos2 = channel2.position;
+	const channel1 = interaction.guild.channels.resolve(data1.channel);
+	const channel2 = interaction.guild.channels.resolve(data2.channel);
 
-		channel1.setPosition(pos2 - pos1 > 0 ? distance - 1 : -distance, { relative: true, reason: `${interaction.user.username} swapped 2 classes.` })
-		.then(
-			channel2.setPosition(pos2 - pos1 > 0 ? -distance : distance - 1, { relative: true, reason: `${interaction.user.username} swapped 2 classes.` })
-			.then(interaction.reply('Classes/channels swapped.'))
-			.catch(console.error)
-		)
-		.catch(console.error);
-	}
+	const distance = Math.abs(index2 - index1);
+	const pos1 = channel1.position;
+	const pos2 = channel2.position;
 
-	if (manager.reactor.message)
-		editReactMessage(interaction, manager);
-
-	return Promise.resolve();
+	return {
+		success: true,
+		reason: 'Swapped fields.',
+		update: Promise.all([
+			channel1.setPosition(pos2 - pos1 > 0 ? distance - 1 : -distance, { relative: true, reason: `${interaction.user.username} swapped 2 classes.` }),
+			channel2.setPosition(pos2 - pos1 > 0 ? -distance : distance - 1, { relative: true, reason: `${interaction.user.username} swapped 2 classes.` }),
+			editReactMessage(interaction, manager),
+		]) };
 }
 
-function moveTop(interaction, manager) {
+function moveTop(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length)
+		return { success: false, reason: `The ${classManager ? "field" : "manager"} is empty, you need to add ${classManager ? "classes" : "fields"} first.\n> `, update: null };
+
+	const manager = classManager ? classManager : fieldManager;
+
 	const role = interaction.options.getRole("role", true);
 	const data = manager.fields
-		? manager.fields.find(field => field.id === role.id)
+		? manager.fields.find(searchField => searchField.id === role.id)
 		: manager.classes.find(classData => classData.role === role.id);
 
 	if (!data)
-		return interaction.reply({ content: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason:`${role} is not a managed field role!` , update: null };
 
 	const arr = manager.fields ? manager.fields : manager.classes;
 	const index = arr.indexOf(data);
@@ -326,27 +388,32 @@ function moveTop(interaction, manager) {
 	arr.unshift(data);
 
 	if (manager.fields)
-		interaction.reply('Field moved to top.');
-	else {
-		interaction.guild.channels.resolve(data.channel).setPosition(-index, { relative: true, reason: `${interaction.user.username} moved class to top.` })
-		.then(interaction.reply({ content: 'Class/channel moved to top.', flags: MessageFlags.Ephemeral }))
-		.catch(console.error);
-	}
+		return { success: true, reason: '', update: Promise.resolve() };
 
-	if (manager.reactor.message)
-		editReactMessage(interaction, manager);
-
-	return Promise.resolve();
+	return {
+		success: true,
+		reason: `${classManager ? "Class" : "Field"} moved to top.`,
+		update: Promise.all([
+			interaction.guild.channels.resolve(data.channel).setPosition(-index, { relative: true, reason: `${interaction.user.username} moved class to top.` }),
+			manager.reactor.message ? editReactMessage(interaction, manager) : Promise.resolve(),
+		]) };
 }
 
-function moveBottom(interaction, manager) {
+function moveBottom(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length)
+		return { success: false, reason: `The ${classManager ? "field" : "manager"} is empty, you need to add ${classManager ? "classes" : "fields"} first.\n> `, update: null };
+
+	const manager = classManager ? classManager : fieldManager;
+
 	const role = interaction.options.getRole("role", true);
 	const data = manager.fields
-		? manager.fields.find(field => field.id === role.id)
+		? manager.fields.find(searchField => searchField.id === role.id)
 		: manager.classes.find(classData => classData.role === role.id);
 
 	if (!data)
-		return interaction.reply({ content: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, update: null };
 
 	const arr = manager.fields ? manager.fields : manager.classes;
 	const index = arr.indexOf(data);
@@ -354,75 +421,85 @@ function moveBottom(interaction, manager) {
 	arr.push(data);
 
 	if (manager.fields)
-		interaction.reply({ content: 'Field moved to bottom.', flags: MessageFlags.Ephemeral });
-	else {
-		interaction.guild.channels.resolve(data.channel).setPosition(arr.length - index - 1, { relative: true, reason: `${interaction.user.username} moved class to bottom.` })
-		.then(interaction.reply({ content: 'Class/channel moved to bottom.', flags: MessageFlags.Ephemeral }))
-		.catch(console.error);
-	}
+		return { success: true, reason: '', flags: MessageFlags.Ephemeral };
 
-	if (manager.reactor.message)
-		editReactMessage(interaction, manager);
-
-	return Promise.resolve();
+	return {
+		success: true,
+		reason: `${classManager ? "Class" : "Field"} moved to bottom.`,
+		update: Promise.all([
+			interaction.guild.channels.resolve(data.channel).setPosition(arr.length - index - 1, { relative: true, reason: `${interaction.user.username} moved class to bottom.` }),
+			manager.reactor.message ? editReactMessage(interaction, manager) : Promise.resolve(),
+		]) };
 }
 
-function moveUp(interaction, manager) {
+function moveUp(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length)
+		return { success: false, reason: `The ${classManager ? "field" : "manager"} is empty, you need to add ${classManager ? "classes" : "fields"} first.\n> `, update: null };
+
+	const manager = classManager ? classManager : fieldManager;
+
 	const role = interaction.options.getRole("role", true);
 	const data = manager.fields
-		? manager.fields.find(field => field.id === role.id)
+		? manager.fields.find(searchField => searchField.id === role.id)
 		: manager.classes.find(classData => classData.role === role.id);
 
 	if (!data)
-		return interaction.reply({ content: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, update: null };
 
 	const arr = manager.fields ? manager.fields : manager.classes;
 	const index = arr.indexOf(data);
 	if (index < 1)
-		return interaction.reply({ content: 'That channel is already at the top!', flags: MessageFlags.Ephemeral });
+		return { success: false, reason: 'That channel is already at the top!', update: null };
+
 	[arr[index], arr[index - 1]] = [arr[index - 1], arr[index]];
 
 	if (manager.fields)
-		interaction.reply({ content: 'Field moved up.', flags: MessageFlags.Ephemeral });
-	else {
-		interaction.guild.channels.resolve(data.channel).setPosition(-1, { relative: true, reason: `${interaction.user.username} moved class up.` })
-		.then(interaction.reply({ content: 'Class moved up.', flags: MessageFlags.Ephemeral }))
-		.catch(console.error);
-	}
+		return { success: false, reason: '', update: null };
 
-	if (manager.reactor.message)
-		editReactMessage(interaction, manager);
-
-	return Promise.resolve();
+	return {
+		success: true,
+		reason: `${classManager ? "Class" : "Field"} moved up.`,
+		update: Promise.all([
+			interaction.guild.channels.resolve(data.channel).setPosition(-1, { relative: true, reason: `${interaction.user.username} moved class up.` }),
+			manager.reactor.message ? editReactMessage(interaction, manager) : Promise.resolve(),
+		]) };
 }
 
-function moveDown(interaction, manager) {
+function moveDown(interaction, field, fieldManager, classManager) {
+	if (field && !classManager)
+		return { success: false, reason: `No field information set for ${field.toString()}`, update: null };
+	if (!(classManager ? classManager.classes : fieldManager.fields).length)
+		return { success: false, reason: `The ${classManager ? "field" : "manager"} is empty, you need to add ${classManager ? "classes" : "fields"} first.\n> `, update: null };
+
+	const manager = classManager ? classManager : fieldManager;
+
 	const role = interaction.options.getRole("role", true);
 	const data = manager.fields
-		? manager.fields.find(field => field.id === role.id)
+		? manager.fields.find(searchField => searchField.id === role.id)
 		: manager.classes.find(classData => classData.role === role.id);
 
 	if (!data)
-		return interaction.reply({ content: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, flags: MessageFlags.Ephemeral });
+		return { success: false, reason: manager.fields ? `${role} is not a managed field role!` : `${role} is not a class in this field!`, update: null };
 
 	const arr = manager.fields ? manager.fields : manager.classes;
 	const index = arr.indexOf(data);
 	if (index === arr.length - 1)
-		return interaction.reply({ content: 'That channel is already at the bottom!', flags: MessageFlags.Ephemeral });
-	[arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+		return { success: false, reason: 'That channel is already at the top!', update: null };
+
+	[arr[index], arr[index - 1]] = [arr[index - 1], arr[index]];
 
 	if (manager.fields)
-		interaction.reply({ content: 'Field moved down.', flags: MessageFlags.Ephemeral });
-	else {
-		interaction.guild.channels.resolve(data.channel).setPosition(1, { relative: true, reason: `${interaction.user.username} moved class down.` })
-		.then(interaction.reply({ content: 'Class moved down.', flags: MessageFlags.Ephemeral }))
-		.catch(console.error);
-	}
+		return { success: false, reason: '', update: null };
 
-	if (manager.reactor.message)
-		editReactMessage(interaction, manager);
-
-	return Promise.resolve();
+	return {
+		success: true,
+		reason: `${classManager ? "Class" : "Field"} moved down.`,
+		update: Promise.all([
+			interaction.guild.channels.resolve(data.channel).setPosition(1, { relative: true, reason: `${interaction.user.username} moved class down.` }),
+			manager.reactor.message ? editReactMessage(interaction, manager) : Promise.resolve(),
+		]) };
 }
 
 const newReactor = {
@@ -643,155 +720,173 @@ export default {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageChannels | PermissionFlagsBits.ManageRoles, { checkAdmin: true }))
 			return interaction.reply({ content: 'You do not have adequate permissions for this command to work.\nRequires: MANAGE_CHANNELS and MANAGE_ROLES', flags: MessageFlags.Ephemeral });
 
-		const fieldDB = interaction.client.settings.get('categories');
-		let manager = await fieldDB.get(interaction.guildId)
-		.then(data => data ? data : { fields: [], reactor: newReactor })
-		.catch(console.error);
-		/*if (!manager)
-			return interaction.reply({ content: "There was an error reading the database!", flags: MessageFlags.Ephemeral });*/
-
-		// Guild has version 3.0 data = upgrade to 4
-		if (!manager.fields) {
-			manager = {
-				fields: manager,
-				reactor: newReactor,
-			};
-		}
-
-		const field = interaction.options.getRole("field");
-		// TODO: figure out a way to make field a const
-		let fieldInfo = field ? manager.fields.find(searchField => searchField.id === field.id) : null;
-		if (fieldInfo) {
-			/*
-			 * Update field (when users have data from older version of bot)
-			 * From Version 3
-			 */
-			if (!fieldInfo.reactor) {
-				fieldInfo = {
-					id: fieldInfo.id,
-					channel: fieldInfo.channel,
-					prefix: fieldInfo.prefix,
-					emoji: null,
+		const fieldDB = await interaction.client.settings.get('categories');
+		const fieldManager = await fieldDB.get(interaction.guildId)
+		.then(manager => {
+			if (!manager)
+				return { fields: [], reactor: newReactor };
+			// Upgrade guild data from v3 to v4
+			if (!manager.fields) {
+				return {
+					fields: manager.map(fieldInfo => ({
+						id: fieldInfo.id,
+						channel: fieldInfo.channel,
+						prefix: fieldInfo.prefix,
+						emoji: null,
+						reactor: newReactor,
+						classes: fieldInfo.classes.map((name, index) => ({
+							name,
+							role: fieldInfo.roles[index],
+							channel: fieldInfo.channels[index],
+							emoji: null,
+						})),
+					})),
 					reactor: newReactor,
-					classes: (() => {
-						const classes = [];
-						for (let classNum = 0; classNum < fieldInfo.classes.length; ++classNum) {
-							classes.push({
-								name: fieldInfo.classes[classNum],
-								role: fieldInfo.roles[classNum],
-								channel: fieldInfo.channels[classNum],
-								emoji: null,
-							});
-						}
-						return classes;
-					}) (),
 				};
 			}
+			return manager;
+		});
+
+		const subcommand = interaction.options.getSubcommand();
+		// Handle '/catman list' first
+		if (subcommand === 'list') {
+			return interaction.reply(
+				`The following roles have field information:\n${
+				fieldManager.fields.map(fieldData => fieldData.id).map(snowflake =>
+					interaction.guild.roles.resolve(snowflake)?.toString() ?? 'Could not resolve role!'
+				).join('\n')}`);
 		}
+
+		let reply = '';
+
+		const field = interaction.options.getRole("field");
 		const classRole = interaction.options.getRole("class");
-		if (classRole && !field)
-			return interaction.reply({ content: "You can't specify a class without a field!", flags: MessageFlags.Ephemeral });
-		const classData = classRole ? fieldInfo.classes.find(searchClass => searchClass.role === classRole.id) : null;
-		if (typeof classData === "undefined")
-			return interaction.reply({ content: `${classRole} is not part of the ${field} field.`, flags: MessageFlags.Ephemeral }); // TODO also here
+		const classManager = field ? fieldManager.fields.find(searchField => searchField.id === field.id) : null;
+		const classInfo = classRole ? classManager.classes.find(searchClass => searchClass.role === classRole.id) : null;
+
+		if (classRole) {
+			if (!field)
+				return interaction.reply({ content: "You can't specify a class without a field!", flags: MessageFlags.Ephemeral });
+			if (!classInfo)
+				return interaction.reply({ content: `${classRole} is not part of the ${field} field.`, flags: MessageFlags.Ephemeral });
+		}
 
 		// TODO: when a role is deleted from the server, if that triggers a client event, we should detect that and update the database, removing the data
-		const subcommand = interaction.options.getSubcommand();
+
 		switch (subcommand) {
-			// List fields currently in manager.
-			case 'list':
-				return interaction.reply(
-					`The following roles have field information:\n${
-					manager.fields.map(fieldData => fieldData.id).forEach(snowflake =>
-						interaction.guild.roles.resolve(snowflake)?.toString() ?? 'Could not resolve role!'
-					).join('\n')}`);
+			case 'create-message': {
+				const { success, reason, update } = await createReactMessage(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to delete old react-role message, edit new react-role message, or add reactions to it!", flags: MessageFlags.Ephemeral });
+				});
+				reply = reason;
+				break;
+			}
+			case 'edit-message': {
+				const { success, reason, update } = editReactorText(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+				});
+				reply = reason;
+				break;
+			}
 			// Set field's emoji for react-role message.
 			case 'set-emoji': {
-				const emoji = emojiIsValid(interaction.options.getString('emoji', true));
-				if (!emoji)
-					return interaction.reply(`\`${interaction.options.getString('emoji', true)}\` cannot be resolved to a valid emoji!`);
-				if (!setEmoji(interaction, classData ? fieldInfo : manager, classData ? classData : fieldInfo, emoji))
-					return interaction.reply({ content: `That emoji is already in use by another ${classData ? 'class' : 'field'}!`, flags: MessageFlags.Ephemeral });
+				const emoji = interaction.options.getString('emoji', true);
+				if (!emojiIsValid(emoji))
+					return interaction.reply({ content: `\`${emoji}\` cannot be resolved to a valid emoji!`, flags: MessageFlags.Ephemeral });
+				const manager = classInfo ? classManager : fieldManager;
+				if (!setEmoji(interaction, manager, classInfo ? classInfo : classManager, emoji))
+					return interaction.reply({ content: `That emoji is already in use by another ${classInfo ? 'class' : 'field'}!`, flags: MessageFlags.Ephemeral });
+
+				reply = 'Reaction emoji updated.';
+
 				// Update embed message
-				if (manager.reactor.message)
-					editReactMessage(interaction, classData ? fieldInfo : manager);
-				return fieldDB.set(interaction.guildId, manager)
-				.then(interaction.reply({ content: 'Reaction emoji updated.', flags: MessageFlags.Ephemeral }))
-				.catch(console.error);
+				if (fieldManager.reactor.message) {
+					editReactMessage(interaction, manager)
+					.catch(error => {
+						if (error.message !== "Missing Permissions")
+								throw error;
+						reply += `\nUnable to update react role message due to the following error: {error.message}`;
+					});
+				}
+
+				break;
 			}
-			case 'create-message':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> `, flags: MessageFlags.Ephemeral}); // TODO sample command
-
-				// Create embed message
-				console.log(`Creating ${fieldInfo ? "class" : "field"} react-role embed.`);
-				return createReactMessage(interaction, fieldInfo ? fieldInfo : manager);
-			// Edit text of react-role message.
-			case 'edit-message':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> /catman add \`field:\` ${field} \`name:\` ...`, flags: MessageFlags.Ephemeral}); // TODO sample command
-				// Make sure there actually *is* a message to edit...
-				if (!(fieldInfo ? fieldInfo : manager).reactor.message)
-					return interaction.reply({ content: `There is no message! Create one with:\n> /catman create-message \`channel:\` ... \`message:\` ${interaction.options.getString("message", false)} ${interaction.options.getRole("field", false) ? `\`field:\` ${interaction.options.getRole("field", false)}` : ""}`, flags: MessageFlags.Ephemeral });
-
-				// Update reactor
-				return editReactorText(interaction, fieldInfo ? fieldInfo : manager)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
 			// Swap 2 field's position in list
-			case 'swap':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> `, flags: MessageFlags.Ephemeral}); // TODO sample command
-
-				return swapRoles(interaction, fieldInfo ? fieldInfo : manager)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
+			case 'swap': {
+				const { success, reason, update } = swapRoles(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to edit react-role message, or to move channels!", flags: MessageFlags.Ephemeral });
+				})
+				// Done
+				reply = reason;
+				break;
+			}
 			// Move field to top of list
-			case 'move-top':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> `, flags: MessageFlags.Ephemeral}); // TODO sample command
-
-				return moveTop(interaction, fieldInfo ? fieldInfo : manager)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
+			case 'move-top': {
+				const { success, reason, update } = moveTop(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to move channel position!" });
+				});
+				reply = reason;
+				break;
+			}
 			// Move field to bottom of list
-			case 'move-bottom':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> `, flags: MessageFlags.Ephemeral}); // TODO sample command
-
-				return moveBottom(interaction, fieldInfo ? fieldInfo : manager)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
+			case 'move-bottom': {
+				const { success, reason, update } = moveBottom(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to move channel position!" });
+				});
+				reply = reason;
+				break;
+			}
 			// Move field up in list
-			case 'move-up':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> `, flags: MessageFlags.Ephemeral}); // TODO sample command
-
-				return moveUp(interaction, fieldInfo ? fieldInfo : manager)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
+			case 'move-up': {
+				const { success, reason, update } = moveUp(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to move channel position!" });
+				});
+				reply = reason;
+				break;
+			}
 			// Move field down in list
-			case 'move-down':
-				if (field && !fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field.toString()}`, flags: MessageFlags.Ephemeral });
-				if (!(fieldInfo ? fieldInfo.classes : manager.fields).length)
-					return interaction.reply({ content: `The ${fieldInfo ? "field" : "manager"} is empty, you need to add ${fieldInfo ? "classes" : "fields"} first.\n> `, flags: MessageFlags.Ephemeral}); // TODO sample command
-
-				return moveDown(interaction, fieldInfo ? fieldInfo : manager)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
+			case 'move-down': {
+				const { success, reason, update } = moveDown(interaction, field, fieldManager, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to move channel position!" });
+				});
+				reply = reason;
+				break;
+			}
 			case 'set-category': {
 				const category = interaction.options.getChannel("category", true);
 
@@ -799,17 +894,23 @@ export default {
 				if (!category.type === "GUILD_CATEGORY")
 					return interaction.reply({ content: `${category} is not a channel category!`, flags: MessageFlags.Ephemeral });
 
-				if (fieldInfo) {
+				if (classManager) {
 					// Update existing field object's category
-					fieldInfo.channel = category.id;
+					classManager.channel = category.id;
 
 					// Update embed message
-					if (fieldInfo.reactor.message)
-						editReactMessage(interaction, fieldInfo);
-					 // Update database
-					return fieldDB.set(interaction.guildId, manager)
-					.then(interaction.reply(`Updated field category to ${category.toString()}.`))
-					.catch(console.error);
+					if (classManager.reactor.message) {
+						editReactMessage(interaction, classManager)
+						.catch(error => {
+							if (error.message !== "Missing Permissions")
+								throw error;
+							interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+						});
+					}
+
+					// Update database
+					reply = `Updated field category to ${category.toString()}.`;
+					break;
 				}
 
 				// Create new field object
@@ -821,25 +922,32 @@ export default {
 				newField.channel = category.id;
 
 				// Add it to the manager
-				manager.fields.push(newField);
+				fieldManager.fields.push(newField);
 
-				return interaction.reply(`Created field info for ${field}, under category ${category}.`);
+				reply = `Created field info for ${field}, under category ${category}.`;
+				break;
 			}
 			case 'set-prefix': {
 				// Get new field prefix from user
 				const prefix = interaction.options.getString("prefix", true);
 
-				if (fieldInfo) {
+				if (classManager) {
 					// Update existing field object's prefix
-					fieldInfo.prefix = prefix;
+					classManager.prefix = prefix;
 
 					// Update embed message
-					if (fieldInfo.reactor.message)
-						editReactMessage(interaction, fieldInfo);
+					if (classManager.reactor.message) {
+						editReactMessage(interaction, classManager)
+						.catch(error => {
+							if (error.message !== "Missing Permissions")
+								throw error;
+							interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+						})
+					}
+
 					// Update database
-					return fieldDB.set(interaction.guildId, manager)
-					.then(interaction.reply({ content: `Updated field prefix to \`${prefix}\`.`, flags: MessageFlags.Ephemeral}))
-					.catch(console.error);
+					reply = `Updated field prefix to \`${prefix}\`.`;
+					break;
 				}
 
 				// Create new field object
@@ -851,99 +959,121 @@ export default {
 				newField.prefix = prefix;
 
 				// Add it to the manager
-				manager.fields.push(newField);
+				fieldManager.fields.push(newField);
 
-				return interaction.reply(`Created field info for ${field}, with prefix \`${prefix}\`.`);
+				reply = `Created field info for ${field}, with prefix \`${prefix}\`.`;
+				break;
 			}
 			case 'print': {
-				if (!fieldInfo)
+				if (!classManager)
 					return interaction.reply({ content: `No field information set for ${field}`, flags: MessageFlags.Ephemeral });
 
 				// TODO this is absolutely terrible, make an embed or something
 				const lines = [];
 				// Category
-				if (fieldInfo.channel) {
-					const category = await interaction.guild.channels.fetch(fieldInfo.channel).catch(console.error);
+				if (classManager.channel) {
+					const category = await interaction.guild.channels.fetch(classManager.channel).catch(console.error);
 					lines.push(category ? `Channel Category: ${category.toString()}` : 'Could not fetch category!');
 				}
 				else
 					lines.push("No Channel Category Set");
 				// Prefix
-				lines.push(fieldInfo.prefix ? `Prefix: ${fieldInfo.prefix}` : 'No Prefix Set');
+				lines.push(classManager.prefix ? `Prefix: ${classManager.prefix}` : 'No Prefix Set');
 				// React Role Embed
-				if (fieldInfo.reactor.channel && fieldInfo.reactor.message) {
-					const channel = await interaction.guild.channels.fetch(fieldInfo.reactor.channel).catch(console.error);
-					lines.push(`React Role Message: ${channel ? await channel.messages.fetch(fieldInfo.reactor.message).catch(console.error)?.url ?? 'Could not fetch message!' : 'Could not fetch channel!'}`);
+				if (classManager.reactor.channel && classManager.reactor.message) {
+					const channel = await interaction.guild.channels.fetch(classManager.reactor.channel).catch(console.error);
+					lines.push(`React Role Message: ${channel ? await channel.messages.fetch(classManager.reactor.message).catch(console.error)?.url ?? 'Could not fetch message!' : 'Could not fetch channel!'}`);
 				}
 				else
 					lines.push("No React Role Message Created");
 				// Classes
-				lines.push(`Classes: [ ${fieldInfo.classes.map(classMap => classMap.name).join(', ')} ]`);
+				lines.push(`Classes: [ ${classManager.classes.map(classMap => classMap.name).join(', ')} ]`);
 				// Roles
-				lines.push(`Roles: [ ${fieldInfo.classes.map(classMap => interaction.guild.roles.resolve(classMap.role)?.toString ?? 'Could not fetch role!').join(', ')} ]`);
+				lines.push(`Roles: [ ${classManager.classes.map(classMap => interaction.guild.roles.resolve(classMap.role)?.toString() ?? 'Could not fetch role!').join(', ')} ]`);
 				// Channels
-				lines.push(`Channels: [ ${fieldInfo.classes.map(classMap => interaction.guild.channels.resolve(classMap.channel)?.toString ?? 'Could not fetch channel!').join(', ')} ]`);
-				lines.push(`Emoji: [ ${fieldInfo.classes.map(classMap => classMap.emoji).join(', ')} ]`);
+				lines.push(`Channels: [ ${classManager.classes.map(classMap => interaction.guild.channels.resolve(classMap.channel)?.toString() ?? 'Could not fetch channel!').join(', ')} ]`);
+				lines.push(`Emoji: [ ${classManager.classes.map(classMap => classMap.emoji).join(', ')} ]`);
 
-				return interaction.reply(lines.join('\n'));
+				reply = lines.join('\n');
+				break;
 			}
-			case 'add':
-				if (!fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field}`, flags: MessageFlags.Ephemeral });
-				if (!fieldInfo.channel)
-					return interaction.reply({ content: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, flags: MessageFlags.Ephemeral});
-				if (!fieldInfo.prefix)
-					return interaction.reply({ content: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, flags: MessageFlags.Ephemeral });
-
-				return addClass(interaction, fieldInfo, classRole)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
-			case 'create':
-				if (!fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field}`, flags: MessageFlags.Ephemeral });
-				if (!fieldInfo.channel)
-					return interaction.reply({ content: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, flags: MessageFlags.Ephemeral});
-				if (!fieldInfo.prefix)
-					return interaction.reply({ content: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, flags: MessageFlags.Ephemeral });
-
-				return createClass(interaction, fieldInfo)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
-			case 'remove':
-				if (!fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field}`, flags: MessageFlags.Ephemeral });
-				if (!fieldInfo.channel)
-					return interaction.reply({ content: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, flags: MessageFlags.Ephemeral});
-				if (!fieldInfo.prefix)
-					return interaction.reply({ content: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, flags: MessageFlags.Ephemeral });
-
-				return removeClass(interaction, fieldInfo, field);
-			case 'delete':
-				if (!fieldInfo)
-					return interaction.reply({ content: `No field information set for ${field}`, flags: MessageFlags.Ephemeral });
-				if (!fieldInfo.channel)
-					return interaction.reply({ content: `${field} has no channel category defined, please use \`/catman set-category field: ${field}\`.`, flags: MessageFlags.Ephemeral});
-				if (!fieldInfo.prefix)
-					return interaction.reply({ content: `${field} has no prefix defined, please use \`/catman set-prefix field: ${field}\`.`, flags: MessageFlags.Ephemeral });
-
-				return deleteClass(interaction, fieldInfo, field)
-				.then(() => fieldDB.set(interaction.guildId, manager)) // Update database
-				.catch(console.error);
+			case 'add': {
+				const { success, reason, update } = addClass(interaction, field, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+				});
+				reply = reason;
+				break;
+			}
+			case 'create': {
+				const { success, reason, update } = await createClass(interaction, field, classManager);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+				});
+				reply = reason;
+				break;
+			}
+			case 'remove': {
+				const { success, reason, update } = removeClass(interaction, classManager, field);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+				});
+				reply = reason;
+				break;
+			}
+			case 'delete': {
+				const { success, reason, update } = deleteClass(interaction, classManager, field);
+				if (!success)
+					return interaction.reply({ content: reason, flags: MessageFlags.Ephemeral });
+				await update.catch(error => {
+					if (error.message !== "Missing Permissions")
+						throw error;
+					interaction.channel.send({ content: "Missing permissions to edit react-role message!", flags: MessageFlags.Ephemeral });
+				});
+				reply = reason;
+				break;
+			}
 			case 'purge':
-				if (!fieldInfo)
+				if (!classManager)
 					return interaction.reply({ content: `No field information set for ${field}`, flags: MessageFlags.Ephemeral });
 
 				// Cleanup react-role message if one exists.
-				if (fieldInfo.reactor.message)
-					deleteMessage(interaction.guild, fieldInfo.reactor);
+				if (classManager.reactor.message) {
+					deleteMessage(interaction.guild, classManager.reactor)
+					.catch(error => {
+						if (error.message !== "Missing Permissions")
+							throw error;
+						interaction.channel.send({ content: "Missing permissions to delete react role message!", flags: MessageFlags.Ephemeral });
+					});
+				}
 
 				// Update manager
-				manager.fields.splice(manager.fields.indexOf(fieldInfo), 1);
+				fieldManager.fields.splice(fieldManager.fields.indexOf(classManager), 1);
 
-				return interaction.reply(`${field} field no longer being managed.`);
+				reply = `${field} field no longer being managed.`;
+				break;
+			default:
+				throw new TypeError(`${subcommand} is not a valid subcommand!`);
 		}
-		fieldDB.set(interaction.guildId, manager); // Update database
 
-		throw new TypeError(`${subcommand} is not a valid subcommand!`);
+		// Save changes to database
+		return fieldDB.set(interaction.guildId, fieldManager)
+		.then(() => interaction.reply(reply))
+		.catch(error => {
+			interaction.channel.send("Failed to update database, changes were not saved!");
+			console.error(error);
+		})
 	},
 }

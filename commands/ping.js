@@ -7,6 +7,6 @@ export default {
 	guildOnly: false,
 	cooldown: 5,
 	execute(interaction) {
-		return interaction.reply(`Pong! This message had a latency of ${Date.now() - interaction.createdTimestamp}`);
+		return interaction.reply(`Pong! This message had a latency of ${Date.now() - interaction.createdTimestamp} ms.`);
 	},
 };

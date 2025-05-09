@@ -83,9 +83,15 @@ client.once('ready', async () => {
 		)).filter(({ manager }) => manager);
 		Promise.all(fieldManagers.map(({ guild, manager }) => [
 			(manager.reactor.channel && manager.reactor.message && !guild.channels.resolve(manager.reactor.channel).messages.cache.has(manager.reactor.message))
-				? guild.channels.fetch(manager.reactor.channel).then(channel => channel.messages.fetch(manager.reactor.message))
+				? guild.channels.fetch(manager.reactor.channel).then(channel => channel.messages.fetch(manager.reactor.message).catch(console.error))
 				: null,
-			manager.fields.map(field => (field.reactor.channel && field.reactor.message && !guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message)) ? guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message) : null)
+			manager.fields.map(field => (
+				field.reactor.channel &&
+				field.reactor.message &&
+				!guild.channels.resolve(field.reactor.channel).messages.cache.has(field.reactor.message))
+					? guild.channels.resolve(field.reactor.channel).messages.fetch(field.reactor.message).catch(console.error)
+					: null
+			)
 		].flat().filter(promise => promise))).then(console.log('Cached all field and class messages.'));
 	}
 	catch (err) {
@@ -100,7 +106,13 @@ client.once('ready', async () => {
 			)
 		)).filter(({ manager }) => manager);
 		Promise.all(reactManagers.map(
-			({ guild, manager }) => manager.reactors.map(reactor => (reactor.channel && reactor.message && !guild.channels.resolve(reactor.channel).messages.cache.has(reactor.message)) ? guild.channels.resolve(reactor.channel).messages.fetch(reactor.message) : null).filter(promise => promise)
+			({ guild, manager }) => manager.reactors.map(reactor => (
+				reactor.channel &&
+				reactor.message &&
+				!guild.channels.resolve(reactor.channel).messages.cache.has(reactor.message))
+					? guild.channels.resolve(reactor.channel).messages.fetch(reactor.message).catch(console.error)
+					: null
+			).filter(promise => promise)
 		)).then(console.log('Cached all react messages.'));
 	}
 	catch (err) {
@@ -161,7 +173,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
 
 		const field = type === 'class' ? manager.fields.find(searchField => searchField.reactor.message === reaction.message.id) : null;
 		if (typeof field === "undefined")
-			console.error(`${user} added a reaction, and this caused 'field' to be undefined. Happened in ${reaction.message.channel.name}`);
+			return;
+			//console.error(`${user} added a reaction, and this caused 'field' to be undefined. Happened in ${reaction.message.channel.name}`);
 
 		const thing = type === 'field'
 			? manager.fields.find(searchField => searchField.emoji === reaction.emoji.toString())
@@ -238,7 +251,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 
 		const thing = type === 'field'
 			? manager.fields.find(searchField => searchField.emoji === reaction.emoji.toString())
-			: manager.fields.find(searchField => searchField.reactor.message === reaction.message.id).classes.find(searchClass => searchClass.emoji === reaction.emoji.toString());
+			: manager.fields.find(searchField => searchField.reactor.message === reaction.message.id)?.classes.find(searchClass => searchClass.emoji === reaction.emoji.toString()) ?? null;
 		if (!thing)
 			return; // Reacted with emoji not in list
 
